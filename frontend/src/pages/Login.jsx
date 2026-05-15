@@ -1,81 +1,119 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { Lock } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function Login() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [accessKey, setAccessKey] = useState('');
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!accessKey.startsWith('jm_')) {
+      toast.error('Access key must start with jm_');
+      return;
+    }
     setLoading(true);
     try {
-      await login(email, password);
-      toast.success('Welcome back!');
+      await login(accessKey);
+      toast.success('Authenticated successfully');
       navigate('/');
     } catch {
-      toast.error('Invalid email or password');
+      toast.error('Authentication failed');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-[calc(100vh-200px)] flex items-center justify-center px-4 py-12">
-      <div className="bg-white rounded-2xl shadow-lg p-8 w-full max-w-md">
-        <div className="text-center mb-6">
-          <div className="w-16 h-16 bg-[#0078ad] rounded-full flex items-center justify-center mx-auto mb-3">
-            <span className="text-white font-bold text-2xl">J</span>
-          </div>
-          <h1 className="text-2xl font-bold text-gray-800">Welcome back</h1>
-          <p className="text-gray-500 text-sm mt-1">Sign in to your JioMart account</p>
+    <div style={styles.overlay}>
+      <div style={styles.card}>
+        <div style={styles.iconWrap}>
+          <Lock size={32} color="var(--accent)" />
         </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="Enter your email"
-              required
-              className="w-full px-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0078ad] focus:border-transparent"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Enter your password"
-              required
-              className="w-full px-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0078ad] focus:border-transparent"
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full btn-primary py-3 disabled:opacity-50"
-          >
-            {loading ? 'Signing in...' : 'Sign In'}
+        <h2 style={styles.title}>ELITe JioMart</h2>
+        <p style={styles.subtitle}>Secure Access Portal</p>
+        <form onSubmit={handleSubmit}>
+          <input
+            type="text"
+            placeholder="Enter Access Key (jm_...)"
+            value={accessKey}
+            onChange={(e) => setAccessKey(e.target.value)}
+            style={styles.input}
+          />
+          <button type="submit" disabled={loading} style={styles.button}>
+            {loading ? 'Authenticating...' : 'Authenticate'}
           </button>
         </form>
-
-        <p className="text-center text-sm text-gray-500 mt-6">
-          Don&apos;t have an account?{' '}
-          <Link to="/register" className="text-[#0078ad] font-semibold hover:underline">
-            Register
-          </Link>
-        </p>
       </div>
     </div>
   );
 }
+
+const styles = {
+  overlay: {
+    minHeight: '100vh',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: 'var(--bg-primary)',
+    padding: '20px',
+  },
+  card: {
+    background: 'var(--bg-card)',
+    border: '1px solid var(--border)',
+    borderRadius: 'var(--radius-lg)',
+    padding: '48px 40px',
+    width: '100%',
+    maxWidth: '420px',
+    textAlign: 'center',
+    boxShadow: 'var(--shadow)',
+  },
+  iconWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: '50%',
+    background: 'var(--accent-light)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    margin: '0 auto 20px',
+  },
+  title: {
+    fontSize: '24px',
+    fontWeight: 600,
+    color: 'var(--accent)',
+    margin: '0 0 4px',
+  },
+  subtitle: {
+    color: 'var(--text-secondary)',
+    fontSize: '14px',
+    marginBottom: '24px',
+  },
+  input: {
+    width: '100%',
+    padding: '12px 16px',
+    background: 'var(--bg-input)',
+    border: '1px solid var(--border)',
+    borderRadius: 'var(--radius)',
+    color: 'var(--text-primary)',
+    fontSize: '14px',
+    outline: 'none',
+    marginBottom: '16px',
+  },
+  button: {
+    width: '100%',
+    padding: '12px',
+    background: 'var(--accent)',
+    color: '#fff',
+    border: 'none',
+    borderRadius: 'var(--radius)',
+    fontSize: '15px',
+    fontWeight: 600,
+    cursor: 'pointer',
+    transition: 'background 0.2s',
+  },
+};

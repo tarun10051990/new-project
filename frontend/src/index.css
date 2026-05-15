@@ -1,102 +1,89 @@
-@import "tailwindcss";
-
-@layer base {
-  * {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-  }
-
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
-    background-color: #f5f5f5;
-    color: #333;
-  }
-
-  a {
-    text-decoration: none;
-    color: inherit;
-  }
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
 }
 
-@layer components {
-  .btn-primary {
-    @apply bg-[#0078ad] text-white px-6 py-2 rounded-lg font-semibold hover:bg-[#006090] transition-colors;
-  }
-
-  .btn-secondary {
-    @apply bg-white text-[#0078ad] border-2 border-[#0078ad] px-6 py-2 rounded-lg font-semibold hover:bg-[#0078ad] hover:text-white transition-colors;
-  }
-
-  .card {
-    @apply bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow;
-  }
-
-  .badge-discount {
-    @apply bg-green-600 text-white text-xs font-bold px-2 py-0.5 rounded;
-  }
+:root {
+  --bg-primary: #0f1117;
+  --bg-secondary: #1a1d27;
+  --bg-card: #1e2130;
+  --bg-input: #252838;
+  --bg-hover: #2a2d3e;
+  --text-primary: #e4e6eb;
+  --text-secondary: #9ca3af;
+  --text-muted: #6b7280;
+  --accent: #4f6ef7;
+  --accent-hover: #3b5ce4;
+  --accent-light: rgba(79, 110, 247, 0.15);
+  --success: #10b981;
+  --danger: #ef4444;
+  --warning: #f59e0b;
+  --border: #2e3144;
+  --border-light: #383b4e;
+  --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+  --radius: 8px;
+  --radius-lg: 12px;
+  --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
-/* Custom scrollbar */
+[data-theme='light'] {
+  --bg-primary: #f3f4f6;
+  --bg-secondary: #ffffff;
+  --bg-card: #ffffff;
+  --bg-input: #f9fafb;
+  --bg-hover: #f3f4f6;
+  --text-primary: #111827;
+  --text-secondary: #4b5563;
+  --text-muted: #9ca3af;
+  --accent: #4f6ef7;
+  --accent-hover: #3b5ce4;
+  --accent-light: rgba(79, 110, 247, 0.1);
+  --border: #e5e7eb;
+  --border-light: #d1d5db;
+  --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+body {
+  font-family: var(--font);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+input, select, textarea, button {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+/* Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
-
 ::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: var(--bg-primary);
 }
-
 ::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
+  background: var(--border);
   border-radius: 3px;
 }
-
 ::-webkit-scrollbar-thumb:hover {
-  background: #a1a1a1;
-}
-
-/* Product grid scroll */
-.product-scroll {
-  display: flex;
-  overflow-x: auto;
-  gap: 1rem;
-  padding-bottom: 0.5rem;
-  scroll-behavior: smooth;
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-
-.product-scroll::-webkit-scrollbar {
-  display: none;
-}
-
-/* Banner carousel */
-.banner-carousel {
-  position: relative;
-  overflow: hidden;
-  border-radius: 0.5rem;
-}
-
-.banner-track {
-  display: flex;
-  transition: transform 0.5s ease-in-out;
-}
-
-.banner-slide {
-  min-width: 100%;
-  flex-shrink: 0;
-}
-
-/* Category pills horizontal scroll */
-.category-scroll {
-  display: flex;
-  overflow-x: auto;
-  gap: 0.5rem;
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-
-.category-scroll::-webkit-scrollbar {
-  display: none;
+  background: var(--text-muted);
 }
