@@ -1,173 +1,158 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { FiSearch, FiShoppingCart, FiHeart, FiUser, FiMapPin, FiMenu, FiX } from 'react-icons/fi';
 import { useAuth } from '../context/AuthContext';
-import { useCart } from '../context/CartContext';
+import api from '../utils/api';
+import {
+  Zap, Sun, Moon, LogOut, BookOpen, ArrowLeftRight,
+  MessageCircle, Archive, History
+} from 'lucide-react';
 
 export default function Header() {
   const { user, logout } = useAuth();
-  const { cart } = useCart();
   const navigate = useNavigate();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark');
+  const [stats, setStats] = useState({ totalAccounts: 0, totalOrders: 0, todaysOrders: 0, totalSpent: 0 });
 
-  const handleSearch = (e) => {
-    e.preventDefault();
-    if (searchQuery.trim()) {
-      navigate(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
-      setSearchQuery('');
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('theme', theme);
+  }, [theme]);
+
+  useEffect(() => {
+    if (user) {
+      api.get(`/orders/${user.id}/stats`).then(r => setStats(r.data)).catch(() => {});
     }
-  };
+  }, [user]);
+
+  const toggleTheme = () => setTheme(t => t === 'dark' ? 'light' : 'dark');
+
+  const handleLogout = () => { logout(); navigate('/login'); };
+
+  if (!user) return null;
 
   return (
-    <header className="bg-[#0078ad] sticky top-0 z-50">
-      {/* Top bar */}
-      <div className="max-w-7xl mx-auto px-4">
-        <div className="flex items-center h-16 gap-4">
-          {/* Mobile menu button */}
-          <button
-            className="lg:hidden text-white"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          >
-            {mobileMenuOpen ? <FiX size={24} /> : <FiMenu size={24} />}
+    <header style={styles.header}>
+      <div style={styles.topRow}>
+        <div style={styles.brand}>
+          <Zap size={20} color="var(--accent)" />
+          <h1 style={styles.logo}>ELITe JIOMART</h1>
+          <span style={styles.keyBadge}>({user.accessKey.substring(0, 8)}...)</span>
+        </div>
+
+        <div style={styles.statsRow}>
+          <StatBox label="Total Accounts" value={stats.totalAccounts} />
+          <StatBox label="Total Orders" value={stats.totalOrders} />
+          <StatBox label="Today's Orders" value={stats.todaysOrders} color="var(--danger)" />
+          <StatBox label="Total Spent" value={`₹${(stats.totalSpent || 0).toFixed(2)}`} />
+        </div>
+
+        <div style={styles.navLinks}>
+          <Link to="/howtouse" style={styles.navLink}><BookOpen size={14} /> How to Use</Link>
+          <Link to="/converter" style={styles.navLink}><ArrowLeftRight size={14} /> Cookie Converter</Link>
+        </div>
+      </div>
+
+      <div style={styles.bottomRow}>
+        <div style={styles.userInfo}>
+          <span style={styles.avatar}>👤 {user.displayName}</span>
+          <span style={styles.credits}>💰 {user.credits.toFixed(2)} Cr</span>
+        </div>
+        <div style={styles.actions}>
+          <button style={styles.actionBtn} title="Vault"><Archive size={14} /> Vault</button>
+          <button style={styles.actionBtn} title="Credit History"><History size={14} /> Credit History</button>
+          <a href="https://t.me/elitejiomart" target="_blank" rel="noreferrer" style={styles.telegramBtn}>
+            <MessageCircle size={14} /> Contact on Telegram
+          </a>
+          <button onClick={toggleTheme} style={styles.iconBtn} title="Toggle Theme">
+            {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
           </button>
-
-          {/* Logo */}
-          <Link to="/" className="flex-shrink-0">
-            <div className="flex items-center gap-2">
-              <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center">
-                <span className="text-[#0078ad] font-bold text-lg">J</span>
-              </div>
-              <span className="text-white font-bold text-xl hidden sm:block">JioMart</span>
-            </div>
-          </Link>
-
-          {/* Location */}
-          <div className="hidden md:flex items-center text-white text-sm gap-1 cursor-pointer hover:opacity-80">
-            <FiMapPin size={16} />
-            <div>
-              <div className="text-xs opacity-80">Deliver to</div>
-              <div className="font-semibold">Mumbai 400001</div>
-            </div>
-          </div>
-
-          {/* Search bar */}
-          <form onSubmit={handleSearch} className="flex-1 max-w-2xl">
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Search for groceries, electronics, fashion..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full px-4 py-2 pl-10 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-white/50"
-              />
-              <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-            </div>
-          </form>
-
-          {/* Right icons */}
-          <div className="flex items-center gap-3 sm:gap-5">
-            <Link to="/wishlist" className="text-white hover:opacity-80 hidden sm:block" title="Wishlist">
-              <FiHeart size={22} />
-            </Link>
-
-            <Link to="/cart" className="text-white hover:opacity-80 relative" title="Cart">
-              <FiShoppingCart size={22} />
-              {cart.itemCount > 0 && (
-                <span className="absolute -top-2 -right-2 bg-yellow-400 text-[#0078ad] text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
-                  {cart.itemCount}
-                </span>
-              )}
-            </Link>
-
-            <div className="relative">
-              <button
-                onClick={() => setUserMenuOpen(!userMenuOpen)}
-                className="text-white hover:opacity-80 flex items-center gap-1"
-              >
-                <FiUser size={22} />
-                {user && <span className="hidden sm:block text-sm">{user.name.split(' ')[0]}</span>}
-              </button>
-
-              {userMenuOpen && (
-                <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-lg shadow-lg py-2 z-50">
-                  {user ? (
-                    <>
-                      <div className="px-4 py-2 border-b">
-                        <div className="font-semibold text-sm">{user.name}</div>
-                        <div className="text-xs text-gray-500">{user.email}</div>
-                      </div>
-                      <Link to="/orders" className="block px-4 py-2 text-sm hover:bg-gray-50" onClick={() => setUserMenuOpen(false)}>My Orders</Link>
-                      <Link to="/wishlist" className="block px-4 py-2 text-sm hover:bg-gray-50" onClick={() => setUserMenuOpen(false)}>Wishlist</Link>
-                      <button onClick={() => { logout(); setUserMenuOpen(false); }} className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-50">Logout</button>
-                    </>
-                  ) : (
-                    <>
-                      <Link to="/login" className="block px-4 py-2 text-sm hover:bg-gray-50" onClick={() => setUserMenuOpen(false)}>Login</Link>
-                      <Link to="/register" className="block px-4 py-2 text-sm hover:bg-gray-50" onClick={() => setUserMenuOpen(false)}>Register</Link>
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
+          <button onClick={handleLogout} style={{ ...styles.actionBtn, color: 'var(--danger)' }}>
+            <LogOut size={14} /> Logout
+          </button>
         </div>
       </div>
-
-      {/* Category Navigation */}
-      <div className="bg-white border-b">
-        <div className="max-w-7xl mx-auto px-4">
-          <nav className="category-scroll py-2">
-            {[
-              { name: 'Groceries', slug: 'fruits-vegetables', icon: '🥬' },
-              { name: 'Dairy', slug: 'dairy-bakery', icon: '🥛' },
-              { name: 'Staples', slug: 'staples', icon: '🌾' },
-              { name: 'Snacks', slug: 'snacks-beverages', icon: '🍿' },
-              { name: 'Personal Care', slug: 'personal-care', icon: '🧴' },
-              { name: 'Home Care', slug: 'home-care', icon: '🏠' },
-              { name: 'Electronics', slug: 'electronics', icon: '📱' },
-              { name: 'Fashion', slug: 'fashion', icon: '👕' },
-              { name: 'Beauty', slug: 'beauty', icon: '💄' },
-              { name: 'Home & Kitchen', slug: 'home-kitchen', icon: '🍳' },
-              { name: 'Baby Care', slug: 'baby-care', icon: '👶' },
-            ].map((cat) => (
-              <Link
-                key={cat.slug}
-                to={`/category/${cat.slug}`}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-700 hover:text-[#0078ad] hover:bg-blue-50 rounded-full whitespace-nowrap transition-colors"
-              >
-                <span>{cat.icon}</span>
-                <span>{cat.name}</span>
-              </Link>
-            ))}
-          </nav>
-        </div>
-      </div>
-
-      {/* Mobile menu */}
-      {mobileMenuOpen && (
-        <div className="lg:hidden bg-white border-t absolute w-full shadow-lg z-50">
-          <div className="p-4 space-y-2">
-            {user ? (
-              <>
-                <div className="p-3 bg-gray-50 rounded-lg mb-3">
-                  <div className="font-semibold">{user.name}</div>
-                  <div className="text-sm text-gray-500">{user.email}</div>
-                </div>
-                <Link to="/orders" className="block p-2 hover:bg-gray-50 rounded" onClick={() => setMobileMenuOpen(false)}>My Orders</Link>
-                <Link to="/wishlist" className="block p-2 hover:bg-gray-50 rounded" onClick={() => setMobileMenuOpen(false)}>Wishlist</Link>
-                <button onClick={() => { logout(); setMobileMenuOpen(false); }} className="w-full text-left p-2 text-red-600 hover:bg-gray-50 rounded">Logout</button>
-              </>
-            ) : (
-              <>
-                <Link to="/login" className="block p-2 hover:bg-gray-50 rounded" onClick={() => setMobileMenuOpen(false)}>Login</Link>
-                <Link to="/register" className="block p-2 hover:bg-gray-50 rounded" onClick={() => setMobileMenuOpen(false)}>Register</Link>
-              </>
-            )}
-          </div>
-        </div>
-      )}
     </header>
   );
 }
+
+function StatBox({ label, value, color }) {
+  return (
+    <div style={styles.statBox}>
+      <span style={styles.statLabel}>{label}</span>
+      <span style={{ ...styles.statValue, color: color || 'var(--text-primary)' }}>{value}</span>
+    </div>
+  );
+}
+
+const styles = {
+  header: {
+    background: 'var(--bg-secondary)',
+    borderBottom: '1px solid var(--border)',
+    padding: '16px 24px',
+  },
+  topRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: '16px',
+    marginBottom: '12px',
+  },
+  brand: { display: 'flex', alignItems: 'center', gap: '8px' },
+  logo: { fontSize: '18px', fontWeight: 700, margin: 0, color: 'var(--text-primary)' },
+  keyBadge: {
+    fontSize: '11px',
+    background: 'var(--bg-input)',
+    padding: '2px 8px',
+    borderRadius: '4px',
+    color: 'var(--text-secondary)',
+  },
+  statsRow: { display: 'flex', gap: '24px', flexWrap: 'wrap' },
+  statBox: { display: 'flex', flexDirection: 'column', alignItems: 'center' },
+  statLabel: { fontSize: '10px', textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.5px' },
+  statValue: { fontSize: '20px', fontWeight: 700 },
+  navLinks: { display: 'flex', gap: '16px' },
+  navLink: {
+    display: 'flex', alignItems: 'center', gap: '4px',
+    color: 'var(--accent)', fontSize: '13px', textDecoration: 'none',
+  },
+  bottomRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: '12px',
+  },
+  userInfo: { display: 'flex', alignItems: 'center', gap: '12px' },
+  avatar: {
+    background: 'var(--bg-input)',
+    padding: '4px 12px',
+    borderRadius: 'var(--radius)',
+    fontSize: '13px',
+    color: 'var(--success)',
+  },
+  credits: {
+    fontSize: '14px',
+    fontWeight: 600,
+    color: 'var(--warning)',
+  },
+  actions: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' },
+  actionBtn: {
+    display: 'flex', alignItems: 'center', gap: '4px',
+    background: 'var(--bg-input)', border: '1px solid var(--border)',
+    borderRadius: 'var(--radius)', padding: '6px 12px',
+    color: 'var(--text-secondary)', fontSize: '12px', cursor: 'pointer',
+  },
+  telegramBtn: {
+    display: 'flex', alignItems: 'center', gap: '4px',
+    background: 'var(--success)', border: 'none',
+    borderRadius: 'var(--radius)', padding: '6px 12px',
+    color: '#fff', fontSize: '12px', cursor: 'pointer', textDecoration: 'none',
+  },
+  iconBtn: {
+    background: 'var(--bg-input)', border: '1px solid var(--border)',
+    borderRadius: 'var(--radius)', padding: '6px',
+    color: 'var(--text-secondary)', cursor: 'pointer',
+    display: 'flex', alignItems: 'center',
+  },
+};

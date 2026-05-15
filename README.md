@@ -1,161 +1,145 @@
-# JioMart Clone
+# ELITe JioMart - Bulk Order Dashboard
 
-A full-stack e-commerce application inspired by JioMart, built with React and Node.js.
+A full-stack bulk ordering management system inspired by JioMart, built with React (frontend) and Spring Boot (backend).
 
 ## Tech Stack
 
 ### Frontend
-- **React** (with Vite)
-- **Tailwind CSS** for styling
+- **React 19** (with Vite)
 - **React Router** for navigation
 - **Axios** for API calls
 - **React Hot Toast** for notifications
-- **React Icons** for icons
+- **Lucide React** for icons
 
 ### Backend
-- **Node.js** with **Express**
-- **SQLite** (via better-sqlite3) for database
-- **JWT** for authentication
-- **bcryptjs** for password hashing
+- **Spring Boot 3.2** with Java 17
+- **Spring Data JPA** with H2 in-memory database
+- **Spring Web** for REST API
 
 ## Features
 
-- Product catalog with categories
-- Product search with sorting
-- Product detail pages with related products
-- User authentication (register/login)
-- Shopping cart with quantity management
-- Wishlist
-- Order placement and history
-- Responsive design (mobile-first)
-- Banner carousel on homepage
-- Category-wise product sections
+- Access key authentication (jm_xxx format)
+- Dashboard with statistics (Total Accounts, Orders, Spent)
+- Credit balance display
+- Dark/Light theme toggle
+- Bulk Order Management:
+  - Add delivery addresses (Manual Entry, JSON Payload, Import from Account)
+  - Target address selection with delete capability
+  - Randomize mobile number option
+  - Multi-cart support with product URLs, quantities, coupons, expected prices
+  - Repeat order count
+  - Optional features section
+  - Start Bulk Orders
+- Connected Accounts management:
+  - Add/Delete/Search accounts
+  - Bulk select and delete
+  - Row range selection
+  - Pagination (10/20/40/100 per page)
+  - Live activity tracking
+- Cookie to JSON Converter tool
+- How to Use guide page
+- Vault and Credit History sections
 
 ## Getting Started
 
 ### Prerequisites
+- Java 17+
+- Maven 3.6+
 - Node.js 18+
 
-### Setup
+### Backend Setup
 
-1. **Clone the repository**
-   ```bash
-   git clone <repo-url>
-   cd jiomart-clone
-   ```
+```bash
+cd backend
+mvn clean install
+mvn spring-boot:run
+```
+Backend runs on `http://localhost:8080`
 
-2. **Install backend dependencies**
-   ```bash
-   cd backend
-   npm install
-   ```
-
-3. **Seed the database**
-   ```bash
-   npm run seed
-   ```
-
-4. **Start the backend server**
-   ```bash
-   npm start
-   ```
-   Backend runs on `http://localhost:5000`
-
-5. **Install frontend dependencies** (in a new terminal)
-   ```bash
-   cd frontend
-   npm install
-   ```
-
-6. **Start the frontend dev server**
-   ```bash
-   npm run dev
-   ```
-   Frontend runs on `http://localhost:5173`
-
-### Build for Production
+### Frontend Setup
 
 ```bash
 cd frontend
-npm run build
+npm install
+npm run dev
 ```
+Frontend runs on `http://localhost:5173`
 
-The backend serves the built frontend files automatically.
+### Demo Access
+Use access key: `jm_demo`
 
 ## API Endpoints
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | /api/health | Health check |
-| POST | /api/auth/register | Register user |
-| POST | /api/auth/login | Login user |
-| GET | /api/auth/me | Get current user |
-| GET | /api/products | List products (with filters) |
-| GET | /api/products/featured | Featured products |
-| GET | /api/products/by-category | Products grouped by category |
-| GET | /api/products/:slug | Product detail |
-| GET | /api/categories | List categories |
-| GET | /api/categories/:slug | Category detail |
-| GET | /api/cart | Get cart items |
-| POST | /api/cart/add | Add to cart |
-| PUT | /api/cart/update/:id | Update quantity |
-| DELETE | /api/cart/remove/:id | Remove from cart |
-| DELETE | /api/cart/clear | Clear cart |
-| GET | /api/wishlist | Get wishlist |
-| POST | /api/wishlist/toggle | Toggle wishlist item |
-| DELETE | /api/wishlist/:id | Remove from wishlist |
-| GET | /api/orders | Get orders |
-| POST | /api/orders | Place order |
-| GET | /api/orders/:id | Order detail |
-| GET | /api/banners | Get banners |
+| POST | /api/auth/login | Authenticate with access key |
+| GET | /api/auth/me/:userId | Get user details |
+| GET | /api/addresses/:userId | List addresses |
+| POST | /api/addresses | Create address |
+| DELETE | /api/addresses/:id | Delete address |
+| GET | /api/accounts/:userId | List accounts |
+| GET | /api/accounts/:userId/search | Search accounts |
+| POST | /api/accounts | Add account |
+| DELETE | /api/accounts/:id | Delete account |
+| DELETE | /api/accounts/bulk | Bulk delete accounts |
+| GET | /api/orders/:userId | List orders |
+| GET | /api/orders/:userId/stats | Get dashboard stats |
+| POST | /api/orders | Create bulk order |
+| GET | /api/credits/:userId | Credit history |
 
 ## Project Structure
 
 ```
-jiomart-clone/
 ├── backend/
-│   ├── src/
-│   │   ├── server.js          # Express server entry
-│   │   ├── database.js        # SQLite setup & schema
-│   │   ├── seed.js            # Database seeder
-│   │   ├── middleware/
-│   │   │   └── auth.js        # JWT auth middleware
-│   │   └── routes/
-│   │       ├── auth.js        # Auth routes
-│   │       ├── products.js    # Product routes
-│   │       ├── categories.js  # Category routes
-│   │       ├── cart.js        # Cart routes
-│   │       ├── wishlist.js    # Wishlist routes
-│   │       ├── orders.js      # Order routes
-│   │       └── banners.js     # Banner routes
-│   └── package.json
+│   ├── pom.xml
+│   └── src/main/java/com/jiomart/bulk/
+│       ├── BulkOrderApplication.java
+│       ├── config/WebConfig.java
+│       ├── controller/
+│       │   ├── AuthController.java
+│       │   ├── AddressController.java
+│       │   ├── AccountController.java
+│       │   ├── OrderController.java
+│       │   └── CreditController.java
+│       ├── model/
+│       │   ├── User.java
+│       │   ├── Address.java
+│       │   ├── ConnectedAccount.java
+│       │   ├── BulkOrder.java
+│       │   ├── CartItem.java
+│       │   └── CreditTransaction.java
+│       ├── repository/
+│       │   ├── UserRepository.java
+│       │   ├── AddressRepository.java
+│       │   ├── ConnectedAccountRepository.java
+│       │   ├── BulkOrderRepository.java
+│       │   ├── CartItemRepository.java
+│       │   └── CreditTransactionRepository.java
+│       └── service/
+│           ├── UserService.java
+│           ├── AddressService.java
+│           ├── AccountService.java
+│           ├── OrderService.java
+│           └── CreditService.java
 ├── frontend/
-│   ├── src/
-│   │   ├── main.jsx
-│   │   ├── App.jsx
-│   │   ├── index.css
-│   │   ├── components/
-│   │   │   ├── Header.jsx
-│   │   │   ├── Footer.jsx
-│   │   │   ├── ProductCard.jsx
-│   │   │   ├── BannerCarousel.jsx
-│   │   │   └── CategorySection.jsx
-│   │   ├── pages/
-│   │   │   ├── Home.jsx
-│   │   │   ├── CategoryPage.jsx
-│   │   │   ├── ProductDetail.jsx
-│   │   │   ├── Cart.jsx
-│   │   │   ├── Search.jsx
-│   │   │   ├── Login.jsx
-│   │   │   ├── Register.jsx
-│   │   │   ├── Wishlist.jsx
-│   │   │   └── Orders.jsx
-│   │   ├── context/
-│   │   │   ├── AuthContext.jsx
-│   │   │   └── CartContext.jsx
-│   │   └── utils/
-│   │       └── api.js
 │   ├── index.html
-│   └── package.json
+│   ├── package.json
+│   └── src/
+│       ├── main.jsx
+│       ├── App.jsx
+│       ├── index.css
+│       ├── context/AuthContext.jsx
+│       ├── utils/api.js
+│       ├── components/
+│       │   ├── Header.jsx
+│       │   ├── AddressForm.jsx
+│       │   ├── CartBlock.jsx
+│       │   ├── BulkOrderSection.jsx
+│       │   └── ConnectedAccounts.jsx
+│       └── pages/
+│           ├── Login.jsx
+│           ├── Dashboard.jsx
+│           ├── HowToUse.jsx
+│           └── CookieConverter.jsx
 └── README.md
 ```

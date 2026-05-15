@@ -3,3 +3,20 @@ dist/
 .env
 *.db
 .DS_Store
+
+# Backend
+backend/target/
+backend/*.iml
+backend/.idea/
+*.class
+*.jar
+*.war
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
+# IDE
+.idea/
+.vscode/
+*.iml
