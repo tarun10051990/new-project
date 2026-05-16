@@ -17,8 +17,13 @@ public class User {
     private String displayName;
 
     @Column(nullable = false)
-    private Double credits = 9999.0;
+    private Double credits = 0.0;
 
+    @Column(nullable = false)
+    private String role = "PREMIUM";
+
+    private String email;
+    private String status = "Active";
     private LocalDateTime createdAt = LocalDateTime.now();
 
     public User() {}
@@ -37,6 +42,12 @@ public class User {
     public void setDisplayName(String displayName) { this.displayName = displayName; }
     public Double getCredits() { return credits; }
     public void setCredits(Double credits) { this.credits = credits; }
+    public String getRole() { return role; }
+    public void setRole(String role) { this.role = role; }
+    public String getEmail() { return email; }
+    public void setEmail(String email) { this.email = email; }
+    public String getStatus() { return status; }
+    public void setStatus(String status) { this.status = status; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 }

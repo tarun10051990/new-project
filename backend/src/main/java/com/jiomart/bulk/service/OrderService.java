@@ -2,7 +2,9 @@ package com.jiomart.bulk.service;
 
 import com.jiomart.bulk.model.BulkOrder;
 import com.jiomart.bulk.model.CartItem;
+import com.jiomart.bulk.model.CreditTransaction;
 import com.jiomart.bulk.model.OrderTracking;
+import com.jiomart.bulk.model.User;
 import com.jiomart.bulk.repository.BulkOrderRepository;
 import com.jiomart.bulk.repository.CartItemRepository;
 import com.jiomart.bulk.repository.OrderTrackingRepository;
@@ -21,21 +23,44 @@ public class OrderService {
     private final BulkOrderRepository orderRepository;
     private final CartItemRepository cartItemRepository;
     private final OrderTrackingRepository trackingRepository;
+    private final UserService userService;
+    private final CreditService creditService;
 
     public OrderService(BulkOrderRepository orderRepository, CartItemRepository cartItemRepository,
-                        OrderTrackingRepository trackingRepository) {
+                        OrderTrackingRepository trackingRepository, UserService userService,
+                        CreditService creditService) {
         this.orderRepository = orderRepository;
         this.cartItemRepository = cartItemRepository;
         this.trackingRepository = trackingRepository;
+        this.userService = userService;
+        this.creditService = creditService;
     }
 
     @Transactional
     public BulkOrder createOrder(BulkOrder order, List<CartItem> items) {
+        User user = userService.findById(order.getUserId())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        if (user.getCredits() < 1.0) {
+            throw new RuntimeException("Insufficient credits. Contact admin to add more credits.");
+        }
+
         BulkOrder saved = orderRepository.save(order);
         for (CartItem item : items) {
             item.setOrderId(saved.getId());
             cartItemRepository.save(item);
         }
+
+        user.setCredits(user.getCredits() - 1.0);
+        userService.save(user);
+
+        CreditTransaction tx = new CreditTransaction();
+        tx.setUserId(user.getId());
+        tx.setType("deduct");
+        tx.setAmount(1.0);
+        tx.setDescription("Order #" + saved.getId() + " placed");
+        tx.setBalanceAfter(user.getCredits());
+        creditService.addTransaction(tx);
 
         OrderTracking tracking = new OrderTracking();
         tracking.setOrderId(saved.getId());
@@ -88,6 +113,20 @@ public class OrderService {
             t.setDeliveryStatus("Cancelled");
             t.setUpdatedAt(LocalDateTime.now());
             trackingRepository.save(t);
+        }
+
+        User user = userService.findById(order.getUserId()).orElse(null);
+        if (user != null) {
+            user.setCredits(user.getCredits() + 1.0);
+            userService.save(user);
+
+            CreditTransaction tx = new CreditTransaction();
+            tx.setUserId(user.getId());
+            tx.setType("refund");
+            tx.setAmount(1.0);
+            tx.setDescription("Order #" + orderId + " cancelled - credit refunded");
+            tx.setBalanceAfter(user.getCredits());
+            creditService.addTransaction(tx);
         }
 
         return order;

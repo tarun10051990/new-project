@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Lock } from 'lucide-react';
+import { Shield } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-export default function Login() {
+export default function AdminLogin() {
   const [accessKey, setAccessKey] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  const { adminLogin } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
@@ -18,11 +18,11 @@ export default function Login() {
     }
     setLoading(true);
     try {
-      await login(accessKey);
-      toast.success('Authenticated successfully');
-      navigate('/');
+      await adminLogin(accessKey);
+      toast.success('Admin authenticated');
+      navigate('/admin');
     } catch {
-      toast.error('Invalid access key. Contact admin for a premium key.');
+      toast.error('Admin access denied');
     } finally {
       setLoading(false);
     }
@@ -32,23 +32,23 @@ export default function Login() {
     <div style={styles.overlay}>
       <div style={styles.card}>
         <div style={styles.iconWrap}>
-          <Lock size={32} color="var(--accent)" />
+          <Shield size={32} color="#e74c3c" />
         </div>
-        <h2 style={styles.title}>ELITe JioMart</h2>
-        <p style={styles.subtitle}>Premium Access Portal</p>
+        <h2 style={styles.title}>Admin Panel</h2>
+        <p style={styles.subtitle}>ELITe JioMart Administration</p>
         <form onSubmit={handleSubmit}>
           <input
             type="text"
-            placeholder="Enter Premium Key (jm_...)"
+            placeholder="Enter Admin Key (jm_...)"
             value={accessKey}
             onChange={(e) => setAccessKey(e.target.value)}
             style={styles.input}
           />
           <button type="submit" disabled={loading} style={styles.button}>
-            {loading ? 'Authenticating...' : 'Authenticate'}
+            {loading ? 'Authenticating...' : 'Admin Login'}
           </button>
         </form>
-        <a href="/admin/login" style={styles.link}>Admin Login</a>
+        <a href="/login" style={styles.link}>Customer Login</a>
       </div>
     </div>
   );
@@ -77,7 +77,7 @@ const styles = {
     width: 64,
     height: 64,
     borderRadius: '50%',
-    background: 'var(--accent-light)',
+    background: 'rgba(231, 76, 60, 0.1)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -86,7 +86,7 @@ const styles = {
   title: {
     fontSize: '24px',
     fontWeight: 600,
-    color: 'var(--accent)',
+    color: '#e74c3c',
     margin: '0 0 4px',
   },
   subtitle: {
@@ -108,19 +108,18 @@ const styles = {
   button: {
     width: '100%',
     padding: '12px',
-    background: 'var(--accent)',
+    background: '#e74c3c',
     color: '#fff',
     border: 'none',
     borderRadius: 'var(--radius)',
     fontSize: '15px',
     fontWeight: 600,
     cursor: 'pointer',
-    transition: 'background 0.2s',
   },
   link: {
     display: 'inline-block',
     marginTop: '16px',
-    color: 'var(--text-muted)',
+    color: 'var(--accent)',
     fontSize: '13px',
     textDecoration: 'none',
   },
