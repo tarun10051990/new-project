@@ -3,6 +3,7 @@ package com.jiomart.bulk.service;
 import com.jiomart.bulk.model.User;
 import com.jiomart.bulk.repository.UserRepository;
 import org.springframework.stereotype.Service;
+import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -16,14 +17,22 @@ public class UserService {
     public User authenticate(String accessKey) {
         Optional<User> existing = userRepository.findByAccessKey(accessKey);
         if (existing.isPresent()) {
-            return existing.get();
+            User user = existing.get();
+            if ("Suspended".equals(user.getStatus())) {
+                return null;
+            }
+            return user;
         }
-        if (accessKey.startsWith("jm_")) {
-            User user = new User();
-            user.setAccessKey(accessKey);
-            user.setDisplayName(accessKey.equals("jm_demo") ? "Demo Visitor" : "User " + accessKey.substring(3));
-            user.setCredits(9999.0);
-            return userRepository.save(user);
+        return null;
+    }
+
+    public User authenticateAdmin(String accessKey) {
+        Optional<User> existing = userRepository.findByAccessKey(accessKey);
+        if (existing.isPresent()) {
+            User user = existing.get();
+            if ("ADMIN".equals(user.getRole())) {
+                return user;
+            }
         }
         return null;
     }
@@ -34,5 +43,30 @@ public class UserService {
 
     public User save(User user) {
         return userRepository.save(user);
+    }
+
+    public List<User> getAllPremiumCustomers() {
+        return userRepository.findByRoleOrderByCreatedAtDesc("PREMIUM");
+    }
+
+    public List<User> searchPremiumCustomers(String query) {
+        return userRepository.findByRoleAndDisplayNameContainingIgnoreCaseOrderByCreatedAtDesc("PREMIUM", query);
+    }
+
+    public void deleteUser(Long id) {
+        userRepository.deleteById(id);
+    }
+
+    public void initializeAdmin() {
+        Optional<User> existing = userRepository.findByAccessKey("jm_admin");
+        if (existing.isEmpty()) {
+            User admin = new User();
+            admin.setAccessKey("jm_admin");
+            admin.setDisplayName("Administrator");
+            admin.setCredits(0.0);
+            admin.setRole("ADMIN");
+            admin.setEmail("admin@elitejiomart.com");
+            userRepository.save(admin);
+        }
     }
 }

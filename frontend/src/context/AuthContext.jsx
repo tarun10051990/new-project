@@ -9,6 +9,11 @@ export function AuthProvider({ children }) {
     return saved ? JSON.parse(saved) : null;
   });
 
+  const [admin, setAdmin] = useState(() => {
+    const saved = localStorage.getItem('jm_admin');
+    return saved ? JSON.parse(saved) : null;
+  });
+
   const login = useCallback(async (accessKey) => {
     const { data } = await api.post('/auth/login', { accessKey });
     setUser(data);
@@ -19,6 +24,18 @@ export function AuthProvider({ children }) {
   const logout = useCallback(() => {
     setUser(null);
     localStorage.removeItem('jm_user');
+  }, []);
+
+  const adminLogin = useCallback(async (accessKey) => {
+    const { data } = await api.post('/auth/admin/login', { accessKey });
+    setAdmin(data);
+    localStorage.setItem('jm_admin', JSON.stringify(data));
+    return data;
+  }, []);
+
+  const adminLogout = useCallback(() => {
+    setAdmin(null);
+    localStorage.removeItem('jm_admin');
   }, []);
 
   const refreshUser = useCallback(async () => {
@@ -33,7 +50,7 @@ export function AuthProvider({ children }) {
   }, [user]);
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, refreshUser }}>
+    <AuthContext.Provider value={{ user, login, logout, admin, adminLogin, adminLogout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

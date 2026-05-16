@@ -23,13 +23,32 @@ public class AuthController {
         }
         User user = userService.authenticate(accessKey);
         if (user == null) {
-            return ResponseEntity.status(401).body(Map.of("error", "Authentication failed"));
+            return ResponseEntity.status(401).body(Map.of("error", "Invalid access key. Contact admin for a premium key."));
         }
         return ResponseEntity.ok(Map.of(
             "id", user.getId(),
             "accessKey", user.getAccessKey(),
             "displayName", user.getDisplayName(),
-            "credits", user.getCredits()
+            "credits", user.getCredits(),
+            "role", user.getRole()
+        ));
+    }
+
+    @PostMapping("/admin/login")
+    public ResponseEntity<?> adminLogin(@RequestBody Map<String, String> body) {
+        String accessKey = body.get("accessKey");
+        if (accessKey == null || !accessKey.startsWith("jm_")) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Invalid access key format"));
+        }
+        User admin = userService.authenticateAdmin(accessKey);
+        if (admin == null) {
+            return ResponseEntity.status(401).body(Map.of("error", "Admin access denied"));
+        }
+        return ResponseEntity.ok(Map.of(
+            "id", admin.getId(),
+            "accessKey", admin.getAccessKey(),
+            "displayName", admin.getDisplayName(),
+            "role", admin.getRole()
         ));
     }
 
@@ -40,7 +59,8 @@ public class AuthController {
                 "id", user.getId(),
                 "accessKey", user.getAccessKey(),
                 "displayName", user.getDisplayName(),
-                "credits", user.getCredits()
+                "credits", user.getCredits(),
+                "role", user.getRole()
             )))
             .orElse(ResponseEntity.notFound().build());
     }
