@@ -2,6 +2,7 @@ import Header from '../components/Header';
 import BulkOrderSection from '../components/BulkOrderSection';
 import ConnectedAccounts from '../components/ConnectedAccounts';
 import { ExternalLink } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 export default function Dashboard() {
   return (
@@ -10,9 +11,9 @@ export default function Dashboard() {
       <main style={styles.main}>
         <div style={styles.topActions}>
           <button style={styles.primaryBtn}>Bulk Order Dashboard</button>
-          <button style={styles.secondaryBtn}>
+          <Link to="/otp-tracker" style={{ ...styles.secondaryBtn, textDecoration: 'none' }}>
             Open Live OTP Tracker <ExternalLink size={12} />
-          </button>
+          </Link>
         </div>
         <BulkOrderSection />
         <ConnectedAccounts />

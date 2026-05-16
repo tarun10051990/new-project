@@ -4,6 +4,7 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import HowToUse from './pages/HowToUse';
 import CookieConverter from './pages/CookieConverter';
+import OtpTracker from './pages/OtpTracker';
 
 function ProtectedRoute({ children }) {
   const { user } = useAuth();
@@ -36,6 +37,14 @@ export default function App() {
         element={
           <ProtectedRoute>
             <CookieConverter />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/otp-tracker"
+        element={
+          <ProtectedRoute>
+            <OtpTracker />
           </ProtectedRoute>
         }
       />

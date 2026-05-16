@@ -22,7 +22,7 @@ public class OrderController {
 
     @GetMapping("/{userId}")
     public List<BulkOrder> getOrders(@PathVariable Long userId) {
-        return orderService.getByUserId(userId);
+        return orderService.getByUserIdOrdered(userId);
     }
 
     @GetMapping("/{userId}/stats")
@@ -32,11 +32,37 @@ public class OrderController {
         return stats;
     }
 
+    @GetMapping("/account/{accountId}")
+    public List<BulkOrder> getOrdersByAccount(@PathVariable Long accountId) {
+        return orderService.getByAccountId(accountId);
+    }
+
+    @GetMapping("/detail/{orderId}")
+    public ResponseEntity<?> getOrderDetail(@PathVariable Long orderId) {
+        return orderService.findById(orderId)
+                .map(order -> {
+                    List<CartItem> items = orderService.getCartItems(orderId);
+                    return ResponseEntity.ok(Map.of("order", order, "items", items));
+                })
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @PostMapping("/{orderId}/cancel")
+    public ResponseEntity<?> cancelOrder(@PathVariable Long orderId) {
+        try {
+            BulkOrder cancelled = orderService.cancelOrder(orderId);
+            return ResponseEntity.ok(Map.of("message", "Order cancelled", "order", cancelled));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
     @PostMapping
     public ResponseEntity<?> createOrder(@RequestBody Map<String, Object> body) {
         BulkOrder order = new BulkOrder();
         order.setUserId(((Number) body.get("userId")).longValue());
         order.setAddressId(body.get("addressId") != null ? ((Number) body.get("addressId")).longValue() : null);
+        order.setAccountId(body.get("accountId") != null ? ((Number) body.get("accountId")).longValue() : null);
         order.setRepeatCount(body.get("repeatCount") != null ? ((Number) body.get("repeatCount")).intValue() : 1);
         order.setCouponCode((String) body.get("couponCode"));
         order.setExpectedPrice(body.get("expectedPrice") != null ? ((Number) body.get("expectedPrice")).doubleValue() : null);

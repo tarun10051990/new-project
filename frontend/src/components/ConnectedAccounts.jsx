@@ -4,8 +4,9 @@ import api from '../utils/api';
 import toast from 'react-hot-toast';
 import {
   Users, Search, RefreshCw, Trash2, Plus, Star,
-  ChevronLeft, ChevronRight
+  ChevronLeft, ChevronRight, ClipboardList
 } from 'lucide-react';
+import AccountOrdersModal from './AccountOrdersModal';
 
 export default function ConnectedAccounts() {
   const { user } = useAuth();
@@ -17,6 +18,7 @@ export default function ConnectedAccounts() {
   const [page, setPage] = useState(0);
   const [showAddModal, setShowAddModal] = useState(false);
   const [newAccount, setNewAccount] = useState({ mobileNumber: '', accessToken: '', refreshToken: '' });
+  const [ordersAccount, setOrdersAccount] = useState(null);
 
   const loadAccounts = useCallback(async () => {
     if (!user) return;
@@ -162,12 +164,21 @@ export default function ConnectedAccounts() {
                     <span style={styles.activityBadge}>{acc.liveActivity}</span>
                   </td>
                   <td style={styles.td}>
-                    <button
-                      onClick={async () => { await api.delete(`/accounts/${acc.id}`); loadAccounts(); }}
-                      style={styles.actionBtn}
-                    >
-                      <Trash2 size={12} />
-                    </button>
+                    <div style={{ display: 'flex', gap: '4px' }}>
+                      <button
+                        onClick={() => setOrdersAccount(acc)}
+                        style={styles.ordersBtn}
+                        title="View Orders"
+                      >
+                        <ClipboardList size={12} /> Orders
+                      </button>
+                      <button
+                        onClick={async () => { await api.delete(`/accounts/${acc.id}`); loadAccounts(); }}
+                        style={styles.actionBtn}
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))
@@ -198,6 +209,13 @@ export default function ConnectedAccounts() {
           </button>
         </div>
       </div>
+
+      {ordersAccount && (
+        <AccountOrdersModal
+          account={ordersAccount}
+          onClose={() => setOrdersAccount(null)}
+        />
+      )}
 
       {showAddModal && (
         <div style={styles.modalOverlay} onClick={() => setShowAddModal(false)}>
@@ -302,6 +320,12 @@ const styles = {
     padding: '2px 8px', borderRadius: '12px',
     background: 'var(--bg-input)', color: 'var(--text-secondary)',
     fontSize: '11px',
+  },
+  ordersBtn: {
+    display: 'flex', alignItems: 'center', gap: '3px',
+    background: 'var(--accent)', border: 'none',
+    borderRadius: 'var(--radius)', padding: '4px 8px',
+    color: '#fff', cursor: 'pointer', fontSize: '11px', fontWeight: 600,
   },
   actionBtn: {
     background: 'none', border: '1px solid var(--border)',
