@@ -8,6 +8,8 @@ import java.util.List;
 
 public interface BulkOrderRepository extends JpaRepository<BulkOrder, Long> {
     List<BulkOrder> findByUserId(Long userId);
+    List<BulkOrder> findByUserIdOrderByCreatedAtDesc(Long userId);
+    List<BulkOrder> findByAccountIdOrderByCreatedAtDesc(Long accountId);
     long countByUserId(Long userId);
     long countByUserIdAndCreatedAtAfter(Long userId, LocalDateTime after);
 

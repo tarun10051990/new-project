@@ -2,8 +2,10 @@ package com.jiomart.bulk.service;
 
 import com.jiomart.bulk.model.BulkOrder;
 import com.jiomart.bulk.model.CartItem;
+import com.jiomart.bulk.model.OrderTracking;
 import com.jiomart.bulk.repository.BulkOrderRepository;
 import com.jiomart.bulk.repository.CartItemRepository;
+import com.jiomart.bulk.repository.OrderTrackingRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -12,15 +14,19 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.Optional;
 
 @Service
 public class OrderService {
     private final BulkOrderRepository orderRepository;
     private final CartItemRepository cartItemRepository;
+    private final OrderTrackingRepository trackingRepository;
 
-    public OrderService(BulkOrderRepository orderRepository, CartItemRepository cartItemRepository) {
+    public OrderService(BulkOrderRepository orderRepository, CartItemRepository cartItemRepository,
+                        OrderTrackingRepository trackingRepository) {
         this.orderRepository = orderRepository;
         this.cartItemRepository = cartItemRepository;
+        this.trackingRepository = trackingRepository;
     }
 
     @Transactional
@@ -30,6 +36,23 @@ public class OrderService {
             item.setOrderId(saved.getId());
             cartItemRepository.save(item);
         }
+
+        OrderTracking tracking = new OrderTracking();
+        tracking.setOrderId(saved.getId());
+        tracking.setUserId(saved.getUserId());
+        tracking.setAccountId(saved.getAccountId());
+        tracking.setDeliveryStatus("Processing");
+        tracking.setLastSyncedAt(LocalDateTime.now());
+        String productSummary = items.stream()
+                .filter(i -> i.getProductUrl() != null)
+                .map(i -> i.getProductUrl().substring(Math.max(0, i.getProductUrl().lastIndexOf('/') + 1)))
+                .reduce((a, b) -> a + ", " + b)
+                .orElse("Unknown product");
+        tracking.setProductName(productSummary);
+        tracking.setOrderAmount(saved.getTotalAmount());
+        tracking.setJioOrderId("JIO-" + saved.getId() + "-" + System.currentTimeMillis() % 100000);
+        trackingRepository.save(tracking);
+
         return saved;
     }
 
@@ -37,8 +60,37 @@ public class OrderService {
         return orderRepository.findByUserId(userId);
     }
 
+    public List<BulkOrder> getByUserIdOrdered(Long userId) {
+        return orderRepository.findByUserIdOrderByCreatedAtDesc(userId);
+    }
+
+    public List<BulkOrder> getByAccountId(Long accountId) {
+        return orderRepository.findByAccountIdOrderByCreatedAtDesc(accountId);
+    }
+
     public List<CartItem> getCartItems(Long orderId) {
         return cartItemRepository.findByOrderId(orderId);
+    }
+
+    public Optional<BulkOrder> findById(Long id) {
+        return orderRepository.findById(id);
+    }
+
+    @Transactional
+    public BulkOrder cancelOrder(Long orderId) {
+        BulkOrder order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new RuntimeException("Order not found"));
+        order.setStatus("Cancelled");
+        orderRepository.save(order);
+
+        List<OrderTracking> trackings = trackingRepository.findByOrderId(orderId);
+        for (OrderTracking t : trackings) {
+            t.setDeliveryStatus("Cancelled");
+            t.setUpdatedAt(LocalDateTime.now());
+            trackingRepository.save(t);
+        }
+
+        return order;
     }
 
     public Map<String, Object> getStats(Long userId) {
