@@ -63,7 +63,7 @@ public class AdminController {
         Double credits = body.get("credits") != null ? ((Number) body.get("credits")).doubleValue() : 0.0;
 
         String accessKey = "jm_" + UUID.randomUUID().toString().substring(0, 8);
-        if (body.get("accessKey") != null) {
+        if (body.get("accessKey") != null && !((String) body.get("accessKey")).isBlank()) {
             accessKey = (String) body.get("accessKey");
         }
 

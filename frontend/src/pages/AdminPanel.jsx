@@ -53,7 +53,9 @@ export default function AdminPanel() {
   const handleCreateCustomer = async (e) => {
     e.preventDefault();
     try {
-      await api.post('/admin/customers', newCustomer);
+      const payload = { ...newCustomer };
+      if (!payload.accessKey) delete payload.accessKey;
+      await api.post('/admin/customers', payload);
       toast.success('Customer created');
       setShowCreateModal(false);
       setNewCustomer({ displayName: '', email: '', credits: 0, accessKey: '' });
