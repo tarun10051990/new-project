@@ -21,6 +21,12 @@ public class BulkOrder {
     private String couponCode;
     private Double expectedPrice;
     private Boolean randomizeMobile = true;
+    private String paymentMethod = "COD"; // COD, RAZORPAY, UPI
+    private Double discountAmount = 0.0;
+    private Double loyaltyPointsUsed = 0.0;
+    private String giftVoucherCode;
+    private Double giftVoucherAmount = 0.0;
+    private Double finalAmount = 0.0;
     private LocalDateTime createdAt = LocalDateTime.now();
 
     public BulkOrder() {}
@@ -45,6 +51,18 @@ public class BulkOrder {
     public void setExpectedPrice(Double expectedPrice) { this.expectedPrice = expectedPrice; }
     public Boolean getRandomizeMobile() { return randomizeMobile; }
     public void setRandomizeMobile(Boolean randomizeMobile) { this.randomizeMobile = randomizeMobile; }
+    public String getPaymentMethod() { return paymentMethod; }
+    public void setPaymentMethod(String paymentMethod) { this.paymentMethod = paymentMethod; }
+    public Double getDiscountAmount() { return discountAmount; }
+    public void setDiscountAmount(Double discountAmount) { this.discountAmount = discountAmount; }
+    public Double getLoyaltyPointsUsed() { return loyaltyPointsUsed; }
+    public void setLoyaltyPointsUsed(Double loyaltyPointsUsed) { this.loyaltyPointsUsed = loyaltyPointsUsed; }
+    public String getGiftVoucherCode() { return giftVoucherCode; }
+    public void setGiftVoucherCode(String giftVoucherCode) { this.giftVoucherCode = giftVoucherCode; }
+    public Double getGiftVoucherAmount() { return giftVoucherAmount; }
+    public void setGiftVoucherAmount(Double giftVoucherAmount) { this.giftVoucherAmount = giftVoucherAmount; }
+    public Double getFinalAmount() { return finalAmount; }
+    public void setFinalAmount(Double finalAmount) { this.finalAmount = finalAmount; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 }

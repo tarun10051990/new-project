@@ -77,6 +77,12 @@ public class OrderController {
         order.setCouponCode((String) body.get("couponCode"));
         order.setExpectedPrice(body.get("expectedPrice") != null ? ((Number) body.get("expectedPrice")).doubleValue() : null);
         order.setRandomizeMobile(body.get("randomizeMobile") != null ? (Boolean) body.get("randomizeMobile") : true);
+        order.setPaymentMethod(body.get("paymentMethod") != null ? (String) body.get("paymentMethod") : "COD");
+        order.setDiscountAmount(body.get("discountAmount") != null ? ((Number) body.get("discountAmount")).doubleValue() : 0.0);
+        order.setLoyaltyPointsUsed(body.get("loyaltyPointsUsed") != null ? ((Number) body.get("loyaltyPointsUsed")).doubleValue() : 0.0);
+        order.setGiftVoucherCode((String) body.get("giftVoucherCode"));
+        order.setGiftVoucherAmount(body.get("giftVoucherAmount") != null ? ((Number) body.get("giftVoucherAmount")).doubleValue() : 0.0);
+        order.setFinalAmount(body.get("finalAmount") != null ? ((Number) body.get("finalAmount")).doubleValue() : 0.0);
         order.setStatus("Processing");
 
         @SuppressWarnings("unchecked")
@@ -94,6 +100,11 @@ public class OrderController {
         }
 
         BulkOrder saved = orderService.createOrder(order, cartItems);
-        return ResponseEntity.ok(Map.of("message", "Bulk order started", "orderId", saved.getId()));
+        return ResponseEntity.ok(Map.of(
+            "message", "Bulk order started",
+            "orderId", saved.getId(),
+            "paymentMethod", saved.getPaymentMethod(),
+            "finalAmount", saved.getFinalAmount()
+        ));
     }
 }

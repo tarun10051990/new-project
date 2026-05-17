@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 import AddressForm from './AddressForm';
 import CartBlock from './CartBlock';
 import PaymentModal from './PaymentModal';
-import { Lock, Zap, Plus, ChevronDown, ChevronUp, Trash2, Settings, Package, AlertTriangle } from 'lucide-react';
+import { Lock, Zap, Plus, ChevronDown, ChevronUp, Trash2, Settings, Package, AlertTriangle, Gift, Star, Tag, CreditCard } from 'lucide-react';
 
 const emptyCart = () => ({
   products: [{ url: '', qty: 1 }],
@@ -28,6 +28,17 @@ export default function BulkOrderSection() {
   const [stockResults, setStockResults] = useState([]);
   const [checkingStock, setCheckingStock] = useState(false);
   const [showPayment, setShowPayment] = useState(null);
+  const [couponCode, setCouponCode] = useState('');
+  const [couponResult, setCouponResult] = useState(null);
+  const [applyingCoupon, setApplyingCoupon] = useState(false);
+  const [loyaltyPoints, setLoyaltyPoints] = useState(null);
+  const [loadingPoints, setLoadingPoints] = useState(false);
+  const [pointsToRedeem, setPointsToRedeem] = useState('');
+  const [pointsResult, setPointsResult] = useState(null);
+  const [voucherCode, setVoucherCode] = useState('');
+  const [voucherResult, setVoucherResult] = useState(null);
+  const [applyingVoucher, setApplyingVoucher] = useState(false);
+  const [cartTotal, setCartTotal] = useState(0);
 
   const loadAddresses = useCallback(async () => {
     if (!user) return;
@@ -121,6 +132,123 @@ export default function BulkOrderSection() {
     }
   };
 
+  const calculateCartTotal = useCallback(() => {
+    let total = 0;
+    stockResults.forEach(r => {
+      if (r.inStock) total += r.price * r.requestedQuantity;
+    });
+    if (total === 0) {
+      const expectedPrice = carts[0]?.expectedPrice;
+      total = expectedPrice ? parseFloat(expectedPrice) * repeatCount : 99.0;
+    }
+    setCartTotal(total);
+    return total;
+  }, [stockResults, carts, repeatCount]);
+
+  useEffect(() => { calculateCartTotal(); }, [calculateCartTotal]);
+
+  const handleApplyCoupon = async () => {
+    if (!couponCode.trim()) {
+      toast.error('Enter a coupon code');
+      return;
+    }
+    setApplyingCoupon(true);
+    try {
+      const { data } = await api.post('/jiomart/validate-coupon', {
+        couponCode: couponCode.trim(),
+        cartTotal,
+        accountId: selectedAccount ? parseInt(selectedAccount) : null,
+      });
+      setCouponResult(data);
+      if (data.valid) {
+        toast.success(`Coupon applied! ${data.discountPercent}% off (-\u20b9${data.discountAmount})`);
+      } else {
+        toast.error(data.message);
+      }
+    } catch {
+      toast.error('Failed to validate coupon');
+    } finally {
+      setApplyingCoupon(false);
+    }
+  };
+
+  const handleFetchLoyaltyPoints = async () => {
+    if (!selectedAccount) {
+      toast.error('Select an account to check loyalty points');
+      return;
+    }
+    setLoadingPoints(true);
+    try {
+      const { data } = await api.get(`/jiomart/loyalty-points/${selectedAccount}`);
+      setLoyaltyPoints(data);
+      toast.success(`${data.totalPoints} loyalty points available (\u20b9${data.pointsValue})`);
+    } catch {
+      toast.error('Failed to fetch loyalty points');
+    } finally {
+      setLoadingPoints(false);
+    }
+  };
+
+  const handleRedeemPoints = async () => {
+    const pts = parseInt(pointsToRedeem);
+    if (!pts || pts <= 0) {
+      toast.error('Enter valid points to redeem');
+      return;
+    }
+    if (loyaltyPoints && pts > loyaltyPoints.totalPoints) {
+      toast.error(`You only have ${loyaltyPoints.totalPoints} points`);
+      return;
+    }
+    try {
+      const effectiveTotal = couponResult?.valid ? couponResult.finalAmount : cartTotal;
+      const { data } = await api.post('/jiomart/redeem-loyalty-points', {
+        accountId: parseInt(selectedAccount),
+        points: pts,
+        cartTotal: effectiveTotal,
+      });
+      setPointsResult(data);
+      toast.success(`Redeemed ${pts} points (-\u20b9${data.redeemValue})`);
+    } catch {
+      toast.error('Failed to redeem points');
+    }
+  };
+
+  const handleApplyVoucher = async () => {
+    if (!voucherCode.trim()) {
+      toast.error('Enter a gift voucher code');
+      return;
+    }
+    setApplyingVoucher(true);
+    try {
+      let effectiveTotal = cartTotal;
+      if (couponResult?.valid) effectiveTotal = couponResult.finalAmount;
+      if (pointsResult) effectiveTotal = pointsResult.finalAmount;
+      const { data } = await api.post('/jiomart/validate-gift-voucher', {
+        voucherCode: voucherCode.trim(),
+        accountId: selectedAccount ? parseInt(selectedAccount) : null,
+        cartTotal: effectiveTotal,
+      });
+      setVoucherResult(data);
+      if (data.valid) {
+        toast.success(`Gift voucher applied! -\u20b9${data.applicableAmount}`);
+      } else {
+        toast.error(data.message);
+      }
+    } catch {
+      toast.error('Failed to validate gift voucher');
+    } finally {
+      setApplyingVoucher(false);
+    }
+  };
+
+  const getFinalAmount = () => {
+    let amount = cartTotal;
+    if (couponResult?.valid) amount = couponResult.finalAmount;
+    if (pointsResult) amount = pointsResult.finalAmount;
+    if (voucherResult?.valid) amount = voucherResult.finalAmount;
+    return Math.max(0, amount);
+  };
+
   const handleSyncCart = async () => {
     if (!selectedAccount) {
       toast.error('Select an account to sync cart');
@@ -177,21 +305,42 @@ export default function BulkOrderSection() {
           }
         });
       });
+      const finalAmount = getFinalAmount();
       const { data } = await api.post('/orders', {
         userId: user.id,
         addressId: parseInt(selectedAddress),
         accountId: selectedAccount ? parseInt(selectedAccount) : null,
         repeatCount,
         randomizeMobile,
-        couponCode: carts[0]?.couponCode || '',
+        couponCode: couponResult?.valid ? couponCode : (carts[0]?.couponCode || ''),
         expectedPrice: carts[0]?.expectedPrice ? parseFloat(carts[0].expectedPrice) : null,
+        paymentMethod: 'COD',
+        discountAmount: couponResult?.valid ? couponResult.discountAmount : 0,
+        loyaltyPointsUsed: pointsResult ? pointsResult.redeemValue : 0,
+        giftVoucherCode: voucherResult?.valid ? voucherCode : null,
+        giftVoucherAmount: voucherResult?.valid ? voucherResult.applicableAmount : 0,
+        finalAmount,
         cartItems,
       });
-      toast.success('Order created! Proceeding to payment...');
+
+      if (selectedAccount) {
+        try {
+          await api.post('/jiomart/place-order-cod', {
+            accountId: parseInt(selectedAccount),
+            orderId: data.orderId,
+          });
+          toast.success('Order placed on JioMart with COD!');
+        } catch {
+          toast.error('Order created but failed to sync with JioMart');
+        }
+      } else {
+        toast.success('Order created with COD payment!');
+      }
+
       refreshUser?.();
       setShowPayment({
         orderId: data.orderId,
-        amount: carts[0]?.expectedPrice ? parseFloat(carts[0].expectedPrice) * repeatCount : 99.0,
+        amount: finalAmount,
       });
     } catch (err) {
       const msg = err.response?.data?.error || 'Failed to start bulk orders';
@@ -304,6 +453,161 @@ export default function BulkOrderSection() {
         <button onClick={addCart} style={styles.addCartBtn}>
           <Plus size={14} /> Add Another Cart (For using Another Coupon on Same Account)
         </button>
+      )}
+
+      {/* Coupon, Loyalty Points, Gift Voucher Section */}
+      {!isDemo && (
+        <div style={styles.discountsSection}>
+          <h4 style={styles.discountsTitle}><Tag size={14} /> Discounts & Offers</h4>
+
+          {/* Coupon */}
+          <div style={styles.discountRow}>
+            <div style={styles.discountInputGroup}>
+              <Tag size={14} color="var(--accent)" />
+              <input
+                type="text"
+                value={couponCode}
+                onChange={(e) => setCouponCode(e.target.value)}
+                placeholder="Enter JioMart Coupon Code"
+                style={styles.discountInput}
+              />
+              <button
+                onClick={handleApplyCoupon}
+                disabled={applyingCoupon}
+                style={styles.applyBtn}
+              >
+                {applyingCoupon ? 'Applying...' : 'Apply Coupon'}
+              </button>
+            </div>
+            {couponResult && (
+              <div style={{
+                ...styles.discountResult,
+                borderColor: couponResult.valid ? '#2ecc71' : '#e74c3c',
+              }}>
+                <span style={{ color: couponResult.valid ? '#2ecc71' : '#e74c3c', fontWeight: 600 }}>
+                  {couponResult.message}
+                </span>
+                {couponResult.valid && (
+                  <span style={styles.discountAmount}>
+                    -{couponResult.discountPercent}% (\u20b9{couponResult.discountAmount} off)
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Loyalty Points */}
+          {selectedAccount && (
+            <div style={styles.discountRow}>
+              <div style={styles.discountInputGroup}>
+                <Star size={14} color="#f1c40f" />
+                <button
+                  onClick={handleFetchLoyaltyPoints}
+                  disabled={loadingPoints}
+                  style={styles.loyaltyBtn}
+                >
+                  {loadingPoints ? 'Loading...' : 'Check Loyalty Points'}
+                </button>
+              </div>
+              {loyaltyPoints && (
+                <div style={{ ...styles.discountResult, borderColor: '#f1c40f' }}>
+                  <div style={styles.loyaltyInfo}>
+                    <span><strong>{loyaltyPoints.totalPoints}</strong> points available (\u20b9{loyaltyPoints.pointsValue})</span>
+                    <span style={styles.loyaltyExpiry}>{loyaltyPoints.expiringPoints} points expiring on {loyaltyPoints.expiryDate}</span>
+                    <span style={styles.loyaltyRate}>{loyaltyPoints.conversionRate}</span>
+                  </div>
+                  <div style={styles.redeemRow}>
+                    <input
+                      type="number"
+                      value={pointsToRedeem}
+                      onChange={(e) => setPointsToRedeem(e.target.value)}
+                      placeholder="Points to redeem"
+                      style={styles.redeemInput}
+                      min={1}
+                      max={loyaltyPoints.totalPoints}
+                    />
+                    <button onClick={handleRedeemPoints} style={styles.redeemBtn}>
+                      Redeem Points
+                    </button>
+                  </div>
+                  {pointsResult && (
+                    <div style={styles.redeemResult}>
+                      Redeemed {pointsResult.pointsRedeemed} points = \u20b9{pointsResult.redeemValue} off
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Gift Voucher */}
+          <div style={styles.discountRow}>
+            <div style={styles.discountInputGroup}>
+              <Gift size={14} color="#e74c3c" />
+              <input
+                type="text"
+                value={voucherCode}
+                onChange={(e) => setVoucherCode(e.target.value)}
+                placeholder="Enter Gift Voucher Code"
+                style={styles.discountInput}
+              />
+              <button
+                onClick={handleApplyVoucher}
+                disabled={applyingVoucher}
+                style={{ ...styles.applyBtn, background: '#e74c3c' }}
+              >
+                {applyingVoucher ? 'Applying...' : 'Redeem Voucher'}
+              </button>
+            </div>
+            {voucherResult && (
+              <div style={{
+                ...styles.discountResult,
+                borderColor: voucherResult.valid ? '#2ecc71' : '#e74c3c',
+              }}>
+                <span style={{ color: voucherResult.valid ? '#2ecc71' : '#e74c3c', fontWeight: 600 }}>
+                  {voucherResult.message}
+                </span>
+                {voucherResult.valid && (
+                  <span style={styles.discountAmount}>Reflected in JioMart account</span>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Order Summary */}
+          <div style={styles.orderSummary}>
+            <h4 style={styles.summaryTitle}><CreditCard size={14} /> Order Summary</h4>
+            <div style={styles.summaryRow}>
+              <span>Cart Total</span>
+              <span>\u20b9{cartTotal.toFixed(2)}</span>
+            </div>
+            {couponResult?.valid && (
+              <div style={{ ...styles.summaryRow, color: '#2ecc71' }}>
+                <span>Coupon Discount ({couponResult.discountPercent}%)</span>
+                <span>-\u20b9{couponResult.discountAmount.toFixed(2)}</span>
+              </div>
+            )}
+            {pointsResult && (
+              <div style={{ ...styles.summaryRow, color: '#f1c40f' }}>
+                <span>Loyalty Points ({pointsResult.pointsRedeemed} pts)</span>
+                <span>-\u20b9{pointsResult.redeemValue.toFixed(2)}</span>
+              </div>
+            )}
+            {voucherResult?.valid && (
+              <div style={{ ...styles.summaryRow, color: '#e74c3c' }}>
+                <span>Gift Voucher</span>
+                <span>-\u20b9{voucherResult.applicableAmount.toFixed(2)}</span>
+              </div>
+            )}
+            <div style={styles.summaryTotal}>
+              <span>Final Amount (COD)</span>
+              <span>\u20b9{getFinalAmount().toFixed(2)}</span>
+            </div>
+            <div style={styles.codBadge}>
+              <CreditCard size={12} /> Cash on Delivery
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Stock Check Section */}
@@ -490,5 +794,82 @@ const styles = {
     borderRadius: 'var(--radius)', color: '#fff', fontSize: '16px',
     fontWeight: 700, cursor: 'pointer', transition: 'background 0.2s',
     letterSpacing: '0.5px',
+  },
+  discountsSection: {
+    background: 'var(--bg-card)', border: '1px solid var(--border)',
+    borderRadius: 'var(--radius-lg)', padding: '20px', marginBottom: '16px',
+  },
+  discountsTitle: {
+    margin: '0 0 16px', fontSize: '15px', fontWeight: 600,
+    color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px',
+  },
+  discountRow: { marginBottom: '16px' },
+  discountInputGroup: {
+    display: 'flex', alignItems: 'center', gap: '8px',
+  },
+  discountInput: {
+    flex: 1, padding: '10px 12px', background: 'var(--bg-input)',
+    border: '1px solid var(--border)', borderRadius: 'var(--radius)',
+    color: 'var(--text-primary)', fontSize: '13px', outline: 'none',
+  },
+  applyBtn: {
+    padding: '10px 16px', background: 'var(--accent)', border: 'none',
+    borderRadius: 'var(--radius)', color: '#fff', fontSize: '12px',
+    fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap',
+  },
+  discountResult: {
+    marginTop: '8px', padding: '10px 12px', borderLeft: '3px solid',
+    background: 'var(--bg-input)', borderRadius: '0 var(--radius) var(--radius) 0',
+    fontSize: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+  },
+  discountAmount: { fontSize: '12px', color: 'var(--text-secondary)' },
+  loyaltyBtn: {
+    padding: '10px 16px', background: '#f1c40f', border: 'none',
+    borderRadius: 'var(--radius)', color: '#000', fontSize: '12px',
+    fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap',
+  },
+  loyaltyInfo: {
+    display: 'flex', flexDirection: 'column', gap: '4px', width: '100%',
+  },
+  loyaltyExpiry: { fontSize: '11px', color: 'var(--danger)' },
+  loyaltyRate: { fontSize: '11px', color: 'var(--text-muted)' },
+  redeemRow: {
+    display: 'flex', gap: '8px', marginTop: '8px',
+  },
+  redeemInput: {
+    width: '140px', padding: '8px', background: 'var(--bg-secondary)',
+    border: '1px solid var(--border)', borderRadius: 'var(--radius)',
+    color: 'var(--text-primary)', fontSize: '13px', outline: 'none',
+  },
+  redeemBtn: {
+    padding: '8px 14px', background: '#f39c12', border: 'none',
+    borderRadius: 'var(--radius)', color: '#fff', fontSize: '12px',
+    fontWeight: 600, cursor: 'pointer',
+  },
+  redeemResult: {
+    marginTop: '6px', fontSize: '12px', color: '#2ecc71', fontWeight: 600,
+  },
+  orderSummary: {
+    background: 'var(--bg-secondary)', border: '1px solid var(--border)',
+    borderRadius: 'var(--radius)', padding: '16px', marginTop: '16px',
+  },
+  summaryTitle: {
+    margin: '0 0 12px', fontSize: '14px', fontWeight: 600,
+    color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px',
+  },
+  summaryRow: {
+    display: 'flex', justifyContent: 'space-between',
+    fontSize: '13px', padding: '4px 0', color: 'var(--text-secondary)',
+  },
+  summaryTotal: {
+    display: 'flex', justifyContent: 'space-between',
+    fontSize: '15px', fontWeight: 700, padding: '8px 0 0',
+    borderTop: '1px solid var(--border)', marginTop: '8px',
+    color: 'var(--text-primary)',
+  },
+  codBadge: {
+    display: 'inline-flex', alignItems: 'center', gap: '6px',
+    marginTop: '8px', padding: '4px 12px', background: 'rgba(46,204,113,0.15)',
+    color: '#2ecc71', borderRadius: '4px', fontSize: '11px', fontWeight: 600,
   },
 };
