@@ -4,6 +4,7 @@ import com.jiomart.bulk.model.Address;
 import com.jiomart.bulk.model.ConnectedAccount;
 import com.jiomart.bulk.service.AccountService;
 import com.jiomart.bulk.service.AddressService;
+import com.jiomart.bulk.service.JioMartApiService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import java.util.*;
@@ -14,12 +15,15 @@ public class JioMartIntegrationController {
     private final AccountService accountService;
     private final AddressService addressService;
     private final com.jiomart.bulk.service.TrackingService trackingService;
+    private final JioMartApiService jioMartApiService;
 
     public JioMartIntegrationController(AccountService accountService, AddressService addressService,
-                                         com.jiomart.bulk.service.TrackingService trackingService) {
+                                         com.jiomart.bulk.service.TrackingService trackingService,
+                                         JioMartApiService jioMartApiService) {
         this.accountService = accountService;
         this.addressService = addressService;
         this.trackingService = trackingService;
+        this.jioMartApiService = jioMartApiService;
     }
 
     @PostMapping("/fetch-addresses/{accountId}")
@@ -29,38 +33,28 @@ public class JioMartIntegrationController {
             return ResponseEntity.notFound().build();
         }
 
-        List<Map<String, Object>> addresses = new ArrayList<>();
-        Map<String, Object> addr1 = new LinkedHashMap<>();
-        addr1.put("fullName", "JioMart User");
-        addr1.put("mobileNo", account.getMobileNumber() != null ? account.getMobileNumber() : "9999999999");
-        addr1.put("pincode", "400001");
-        addr1.put("flatHouseNo", "101, Tower A");
-        addr1.put("roadStreetName", "MG Road");
-        addr1.put("localityLandmark", "Near JioMart Warehouse");
-        addr1.put("city", "Mumbai");
-        addr1.put("state", "Maharashtra");
-        addr1.put("latitude", 19.076);
-        addr1.put("longitude", 72.8777);
-        addresses.add(addr1);
+        String accessToken = account.getAccessToken();
+        String refreshToken = account.getRefreshToken();
 
-        Map<String, Object> addr2 = new LinkedHashMap<>();
-        addr2.put("fullName", "JioMart User");
-        addr2.put("mobileNo", account.getMobileNumber() != null ? account.getMobileNumber() : "9999999999");
-        addr2.put("pincode", "110001");
-        addr2.put("flatHouseNo", "B-45, Sector 5");
-        addr2.put("roadStreetName", "Connaught Place");
-        addr2.put("localityLandmark", "Near Metro Station");
-        addr2.put("city", "New Delhi");
-        addr2.put("state", "Delhi");
-        addr2.put("latitude", 28.6315);
-        addr2.put("longitude", 77.2167);
-        addresses.add(addr2);
+        if (accessToken == null || accessToken.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of(
+                "error", "No access token found for this account. Please re-link the account."
+            ));
+        }
+
+        List<Map<String, Object>> rawAddresses = jioMartApiService.fetchAddresses(accessToken, refreshToken);
+
+        List<Map<String, Object>> mappedAddresses = new ArrayList<>();
+        for (Map<String, Object> raw : rawAddresses) {
+            mappedAddresses.add(jioMartApiService.mapJioMartAddressToLocal(raw));
+        }
 
         return ResponseEntity.ok(Map.of(
             "accountId", accountId,
             "accountMobile", account.getMobileNumber() != null ? account.getMobileNumber() : "",
-            "addresses", addresses,
-            "source", "jiomart_api"
+            "addresses", mappedAddresses,
+            "source", "jiomart_api",
+            "totalFound", mappedAddresses.size()
         ));
     }
 
@@ -86,6 +80,46 @@ public class JioMartIntegrationController {
         return ResponseEntity.ok(Map.of(
             "message", "Address imported from JioMart account",
             "address", saved,
+            "syncedToJiomart", true
+        ));
+    }
+
+    @PostMapping("/save-address-to-jiomart")
+    public ResponseEntity<?> saveAddressToJioMart(@RequestBody Map<String, Object> body) {
+        Long accountId = ((Number) body.get("accountId")).longValue();
+
+        ConnectedAccount account = accountService.findById(accountId).orElse(null);
+        if (account == null) {
+            return ResponseEntity.notFound().build();
+        }
+
+        String accessToken = account.getAccessToken();
+        String refreshToken = account.getRefreshToken();
+
+        if (accessToken == null || accessToken.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of(
+                "error", "No access token found for this account"
+            ));
+        }
+
+        Map<String, Object> jioPayload = jioMartApiService.buildJioMartAddressPayload(
+            (String) body.get("fullName"),
+            (String) body.get("mobileNo"),
+            (String) body.get("pincode"),
+            (String) body.get("flatHouseNo"),
+            (String) body.get("roadStreetName"),
+            (String) body.get("localityLandmark"),
+            (String) body.get("city"),
+            (String) body.get("state"),
+            body.get("latitude") != null ? ((Number) body.get("latitude")).doubleValue() : null,
+            body.get("longitude") != null ? ((Number) body.get("longitude")).doubleValue() : null
+        );
+
+        Map<String, Object> result = jioMartApiService.addAddress(accessToken, refreshToken, jioPayload);
+
+        return ResponseEntity.ok(Map.of(
+            "message", "Address saved to JioMart account",
+            "jioMartResponse", result,
             "syncedToJiomart", true
         ));
     }

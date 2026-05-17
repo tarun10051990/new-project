@@ -4,7 +4,7 @@ import api from '../utils/api';
 import toast from 'react-hot-toast';
 import { Plus, ChevronDown, ChevronUp, Download } from 'lucide-react';
 
-export default function AddressForm({ onAddressAdded, accounts = [] }) {
+export default function AddressForm({ onAddressAdded, accounts = [], selectedAccount: externalSelectedAccount }) {
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState('manual');
@@ -15,6 +15,7 @@ export default function AddressForm({ onAddressAdded, accounts = [] }) {
   });
   const [jsonPayload, setJsonPayload] = useState('');
   const [selectedImportAccount, setSelectedImportAccount] = useState('');
+  const [syncAccountId, setSyncAccountId] = useState('');
   const [fetchedAddresses, setFetchedAddresses] = useState([]);
   const [fetching, setFetching] = useState(false);
 
@@ -26,8 +27,12 @@ export default function AddressForm({ onAddressAdded, accounts = [] }) {
       return;
     }
     try {
-      await api.post('/addresses', { ...form, userId: user.id });
-      toast.success('Address saved');
+      const accountId = syncAccountId || externalSelectedAccount || null;
+      const payload = { ...form, userId: user.id };
+      if (accountId) payload.accountId = parseInt(accountId);
+      const { data } = await api.post('/addresses', payload);
+      const syncMsg = data.syncedToJiomart ? ' & synced to JioMart' : '';
+      toast.success('Address saved' + syncMsg);
       setForm({ fullName: '', mobileNo: '', pincode: '', flatHouseNo: '', roadStreetName: '', localityLandmark: '', city: '', state: '', latitude: '', longitude: '' });
       onAddressAdded?.();
     } catch {
@@ -39,8 +44,12 @@ export default function AddressForm({ onAddressAdded, accounts = [] }) {
     try {
       const parsed = JSON.parse(jsonPayload);
       const addr = Array.isArray(parsed) ? parsed[0] : parsed;
-      await api.post('/addresses', { ...addr, userId: user.id });
-      toast.success('Address saved from JSON');
+      const accountId = syncAccountId || externalSelectedAccount || null;
+      const payload = { ...addr, userId: user.id };
+      if (accountId) payload.accountId = parseInt(accountId);
+      const { data } = await api.post('/addresses', payload);
+      const syncMsg = data.syncedToJiomart ? ' & synced to JioMart' : '';
+      toast.success('Address saved from JSON' + syncMsg);
       setJsonPayload('');
       onAddressAdded?.();
     } catch {
@@ -174,7 +183,18 @@ export default function AddressForm({ onAddressAdded, accounts = [] }) {
                 style={styles.textarea}
                 rows={6}
               />
-              <button style={styles.saveBtn} onClick={handleJsonSave}>Save Address from JSON</button>
+              {accounts.length > 0 && (
+                <div style={styles.syncRow}>
+                  <label style={styles.syncLabel}>Also sync to JioMart account:</label>
+                  <select style={styles.syncSelect} value={syncAccountId} onChange={(e) => setSyncAccountId(e.target.value)}>
+                    <option value="">-- Don't sync --</option>
+                    {accounts.map(a => (
+                      <option key={a.id} value={a.id}>{a.mobileNumber} ({a.state})</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              <button style={styles.saveBtn} onClick={handleJsonSave}>Save Address{syncAccountId ? ' & Sync to JioMart' : ''}</button>
             </div>
           )}
 
@@ -192,7 +212,18 @@ export default function AddressForm({ onAddressAdded, accounts = [] }) {
                 <input placeholder="Latitude" type="number" value={form.latitude} onChange={handleChange('latitude')} style={styles.input} />
                 <input placeholder="Longitude" type="number" value={form.longitude} onChange={handleChange('longitude')} style={styles.input} />
               </div>
-              <button style={styles.saveBtn} onClick={handleManualSave}>Save Address to Database</button>
+              {accounts.length > 0 && (
+                <div style={styles.syncRow}>
+                  <label style={styles.syncLabel}>Also sync to JioMart account:</label>
+                  <select style={styles.syncSelect} value={syncAccountId} onChange={(e) => setSyncAccountId(e.target.value)}>
+                    <option value="">-- Don't sync --</option>
+                    {accounts.map(a => (
+                      <option key={a.id} value={a.id}>{a.mobileNumber} ({a.state})</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              <button style={styles.saveBtn} onClick={handleManualSave}>Save Address{syncAccountId ? ' & Sync to JioMart' : ''}</button>
             </div>
           )}
         </div>
@@ -265,4 +296,18 @@ const styles = {
     fontWeight: 600, cursor: 'pointer',
   },
   hint: { color: 'var(--text-muted)', fontSize: '13px', textAlign: 'center' },
+  syncRow: {
+    display: 'flex', alignItems: 'center', gap: '8px',
+    padding: '10px 12px', background: 'var(--bg-input)',
+    borderRadius: 'var(--radius)', border: '1px solid var(--border)',
+  },
+  syncLabel: {
+    fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)',
+    whiteSpace: 'nowrap',
+  },
+  syncSelect: {
+    flex: 1, padding: '8px', background: 'var(--bg-secondary)',
+    border: '1px solid var(--border)', borderRadius: 'var(--radius)',
+    color: 'var(--text-primary)', fontSize: '12px', outline: 'none',
+  },
 };
