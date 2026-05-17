@@ -21,7 +21,7 @@ export default function AdminPanel() {
   const [editCustomer, setEditCustomer] = useState(null);
   const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark');
 
-  const [newCustomer, setNewCustomer] = useState({ displayName: '', email: '', credits: 0, accessKey: '' });
+  const [newCustomer, setNewCustomer] = useState({ displayName: '', email: '', credits: 0, accessKey: '', role: 'PREMIUM' });
   const [creditForm, setCreditForm] = useState({ amount: 0, type: 'add', description: '' });
 
   useEffect(() => {
@@ -58,7 +58,7 @@ export default function AdminPanel() {
       await api.post('/admin/customers', payload);
       toast.success('Customer created');
       setShowCreateModal(false);
-      setNewCustomer({ displayName: '', email: '', credits: 0, accessKey: '' });
+      setNewCustomer({ displayName: '', email: '', credits: 0, accessKey: '', role: 'PREMIUM' });
       fetchCustomers();
       fetchStats();
     } catch {
@@ -141,6 +141,8 @@ export default function AdminPanel() {
         <div style={styles.statsGrid}>
           <StatCard icon={<Users size={20} />} label="Total Customers" value={dashStats.totalCustomers || 0} color="#3498db" />
           <StatCard icon={<Users size={20} />} label="Active Customers" value={dashStats.activeCustomers || 0} color="#2ecc71" />
+          <StatCard icon={<Users size={20} />} label="Premium" value={dashStats.premiumCustomers || 0} color="#f1c40f" />
+          <StatCard icon={<Users size={20} />} label="Demo" value={dashStats.demoCustomers || 0} color="#95a5a6" />
           <StatCard icon={<CreditCard size={20} />} label="Credits Allocated" value={(dashStats.totalCreditsAllocated || 0).toFixed(0)} color="#f39c12" />
           <StatCard icon={<ShoppingCart size={20} />} label="Total Orders" value={dashStats.totalOrders || 0} color="#9b59b6" />
           <StatCard icon={<TrendingUp size={20} />} label="Today's Orders" value={dashStats.todaysOrders || 0} color="#e74c3c" />
@@ -150,7 +152,7 @@ export default function AdminPanel() {
         {/* Customer Management */}
         <div style={styles.section}>
           <div style={styles.sectionHeader}>
-            <h2 style={styles.sectionTitle}>Premium Customers</h2>
+            <h2 style={styles.sectionTitle}>Customers</h2>
             <div style={styles.sectionActions}>
               <div style={styles.searchWrap}>
                 <Search size={14} />
@@ -174,6 +176,7 @@ export default function AdminPanel() {
                 <tr>
                   <th style={styles.th}>ID</th>
                   <th style={styles.th}>Name</th>
+                  <th style={styles.th}>Role</th>
                   <th style={styles.th}>Access Key</th>
                   <th style={styles.th}>Email</th>
                   <th style={styles.th}>Credits</th>
@@ -188,6 +191,13 @@ export default function AdminPanel() {
                   <tr key={c.id} style={styles.tr}>
                     <td style={styles.td}>{c.id}</td>
                     <td style={styles.td}>{c.displayName}</td>
+                    <td style={styles.td}>
+                      <span style={{
+                        ...styles.roleBadge,
+                        background: c.role === 'PREMIUM' ? 'rgba(241,196,15,0.15)' : 'rgba(149,165,166,0.15)',
+                        color: c.role === 'PREMIUM' ? '#f1c40f' : '#95a5a6',
+                      }}>{c.role}</span>
+                    </td>
                     <td style={styles.td}>
                       <code style={styles.keyCode}>{c.accessKey}</code>
                     </td>
@@ -230,7 +240,7 @@ export default function AdminPanel() {
                   </tr>
                 ))}
                 {customers.length === 0 && (
-                  <tr><td colSpan={9} style={{ ...styles.td, textAlign: 'center', padding: '40px' }}>No customers found</td></tr>
+                  <tr><td colSpan={10} style={{ ...styles.td, textAlign: 'center', padding: '40px' }}>No customers found</td></tr>
                 )}
               </tbody>
             </table>
@@ -240,10 +250,17 @@ export default function AdminPanel() {
 
       {/* Create Customer Modal */}
       {showCreateModal && (
-        <Modal title="Add Premium Customer" onClose={() => setShowCreateModal(false)}>
+        <Modal title="Add Customer" onClose={() => setShowCreateModal(false)}>
           <form onSubmit={handleCreateCustomer}>
             <FormField label="Display Name" value={newCustomer.displayName} onChange={v => setNewCustomer({ ...newCustomer, displayName: v })} required />
             <FormField label="Email" value={newCustomer.email} onChange={v => setNewCustomer({ ...newCustomer, email: v })} type="email" />
+            <div style={styles.formGroup}>
+              <label style={styles.formLabel}>Role</label>
+              <select value={newCustomer.role} onChange={e => setNewCustomer({ ...newCustomer, role: e.target.value })} style={styles.formInput}>
+                <option value="PREMIUM">Premium</option>
+                <option value="DEMO">Demo</option>
+              </select>
+            </div>
             <FormField label="Access Key (optional)" value={newCustomer.accessKey} onChange={v => setNewCustomer({ ...newCustomer, accessKey: v })} placeholder="Auto-generated if empty" />
             <FormField label="Initial Credits" value={newCustomer.credits} onChange={v => setNewCustomer({ ...newCustomer, credits: Number(v) })} type="number" />
             <button type="submit" style={styles.submitBtn}>Create Customer</button>
@@ -257,6 +274,13 @@ export default function AdminPanel() {
           <form onSubmit={handleUpdateCustomer}>
             <FormField label="Display Name" value={editCustomer.displayName} onChange={v => setEditCustomer({ ...editCustomer, displayName: v })} required />
             <FormField label="Email" value={editCustomer.email || ''} onChange={v => setEditCustomer({ ...editCustomer, email: v })} type="email" />
+            <div style={styles.formGroup}>
+              <label style={styles.formLabel}>Role</label>
+              <select value={editCustomer.role || 'PREMIUM'} onChange={e => setEditCustomer({ ...editCustomer, role: e.target.value })} style={styles.formInput}>
+                <option value="PREMIUM">Premium</option>
+                <option value="DEMO">Demo</option>
+              </select>
+            </div>
             <div style={styles.formGroup}>
               <label style={styles.formLabel}>Status</label>
               <select value={editCustomer.status} onChange={e => setEditCustomer({ ...editCustomer, status: e.target.value })} style={styles.formInput}>
@@ -462,6 +486,12 @@ const styles = {
     fontSize: '12px',
   },
   statusBadge: {
+    padding: '3px 10px',
+    borderRadius: '12px',
+    fontSize: '11px',
+    fontWeight: 600,
+  },
+  roleBadge: {
     padding: '3px 10px',
     borderRadius: '12px',
     fontSize: '11px',

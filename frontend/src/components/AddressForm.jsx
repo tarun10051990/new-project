@@ -2,9 +2,9 @@ import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
 import toast from 'react-hot-toast';
-import { Plus, ChevronDown, ChevronUp } from 'lucide-react';
+import { Plus, ChevronDown, ChevronUp, Download } from 'lucide-react';
 
-export default function AddressForm({ onAddressAdded }) {
+export default function AddressForm({ onAddressAdded, accounts = [] }) {
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState('manual');
@@ -14,6 +14,9 @@ export default function AddressForm({ onAddressAdded }) {
     latitude: '', longitude: '',
   });
   const [jsonPayload, setJsonPayload] = useState('');
+  const [selectedImportAccount, setSelectedImportAccount] = useState('');
+  const [fetchedAddresses, setFetchedAddresses] = useState([]);
+  const [fetching, setFetching] = useState(false);
 
   const handleChange = (field) => (e) => setForm(f => ({ ...f, [field]: e.target.value }));
 
@@ -42,6 +45,41 @@ export default function AddressForm({ onAddressAdded }) {
       onAddressAdded?.();
     } catch {
       toast.error('Invalid JSON payload');
+    }
+  };
+
+  const handleFetchFromAccount = async () => {
+    if (!selectedImportAccount) {
+      toast.error('Select an account first');
+      return;
+    }
+    setFetching(true);
+    try {
+      const { data } = await api.post(`/jiomart/fetch-addresses/${selectedImportAccount}`);
+      setFetchedAddresses(data.addresses || []);
+      if (data.addresses?.length > 0) {
+        toast.success(`Found ${data.addresses.length} address(es) from JioMart account`);
+      } else {
+        toast.error('No addresses found for this account');
+      }
+    } catch {
+      toast.error('Failed to fetch addresses from JioMart');
+    } finally {
+      setFetching(false);
+    }
+  };
+
+  const handleImportAddress = async (addr) => {
+    try {
+      await api.post('/jiomart/import-address', {
+        ...addr,
+        userId: user.id,
+        accountId: parseInt(selectedImportAccount),
+      });
+      toast.success('Address imported and synced!');
+      onAddressAdded?.();
+    } catch {
+      toast.error('Failed to import address');
     }
   };
 
@@ -79,11 +117,51 @@ export default function AddressForm({ onAddressAdded }) {
 
           {tab === 'import' && (
             <div style={styles.tabContent}>
-              <select style={styles.select}>
+              <select
+                style={styles.select}
+                value={selectedImportAccount}
+                onChange={(e) => setSelectedImportAccount(e.target.value)}
+              >
                 <option value="">-- Select Account --</option>
+                {accounts.map(a => (
+                  <option key={a.id} value={a.id}>
+                    {a.mobileNumber} ({a.state})
+                  </option>
+                ))}
               </select>
-              <button style={styles.fetchBtn}>Fetch Addresses</button>
-              <p style={styles.hint}>Select an account above to fetch its saved JioMart addresses.</p>
+              <button
+                style={styles.fetchBtn}
+                onClick={handleFetchFromAccount}
+                disabled={fetching}
+              >
+                <Download size={14} />
+                {fetching ? 'Fetching...' : 'Fetch Addresses from JioMart'}
+              </button>
+
+              {fetchedAddresses.length > 0 && (
+                <div style={styles.fetchedList}>
+                  <p style={styles.fetchedTitle}>Addresses found from JioMart:</p>
+                  {fetchedAddresses.map((addr, i) => (
+                    <div key={i} style={styles.fetchedItem}>
+                      <div style={styles.fetchedDetails}>
+                        <strong>{addr.fullName}</strong>
+                        <span>{addr.flatHouseNo}, {addr.roadStreetName}</span>
+                        <span>{addr.city}, {addr.state} - {addr.pincode}</span>
+                      </div>
+                      <button
+                        onClick={() => handleImportAddress(addr)}
+                        style={styles.importBtn}
+                      >
+                        Import
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {fetchedAddresses.length === 0 && !fetching && (
+                <p style={styles.hint}>Select an account above to fetch its saved JioMart addresses.</p>
+              )}
             </div>
           )}
 
@@ -153,9 +231,33 @@ const styles = {
     resize: 'vertical', fontFamily: 'monospace',
   },
   fetchBtn: {
-    padding: '8px 16px', background: 'var(--bg-input)', border: '1px solid var(--border)',
-    borderRadius: 'var(--radius)', color: 'var(--text-secondary)', fontSize: '13px', cursor: 'pointer',
-    alignSelf: 'flex-start',
+    display: 'flex', alignItems: 'center', gap: '6px',
+    padding: '10px 16px', background: '#27ae60', border: 'none',
+    borderRadius: 'var(--radius)', color: '#fff', fontSize: '13px',
+    fontWeight: 600, cursor: 'pointer', alignSelf: 'flex-start',
+  },
+  fetchedList: {
+    background: 'var(--bg-input)', border: '1px solid var(--border)',
+    borderRadius: 'var(--radius)', padding: '12px',
+  },
+  fetchedTitle: {
+    fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)',
+    margin: '0 0 8px',
+  },
+  fetchedItem: {
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+    gap: '12px', padding: '10px', background: 'var(--bg-card)',
+    borderRadius: 'var(--radius)', marginBottom: '8px',
+    border: '1px solid var(--border)',
+  },
+  fetchedDetails: {
+    display: 'flex', flexDirection: 'column', gap: '2px',
+    fontSize: '12px', color: 'var(--text-primary)',
+  },
+  importBtn: {
+    padding: '6px 16px', background: 'var(--accent)', border: 'none',
+    borderRadius: 'var(--radius)', color: '#fff', fontSize: '12px',
+    fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap',
   },
   saveBtn: {
     padding: '12px', background: 'var(--accent)', border: 'none',
