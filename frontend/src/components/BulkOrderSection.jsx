@@ -363,7 +363,7 @@ export default function BulkOrderSection() {
         {isDemo && <span style={styles.demoTag}>VIEW ONLY</span>}
       </div>
 
-      {!isDemo && <AddressForm onAddressAdded={loadAddresses} accounts={accounts} />}
+      {!isDemo && <AddressForm onAddressAdded={loadAddresses} accounts={accounts} selectedAccount={selectedAccount} />}
 
       <div style={styles.fieldGroup}>
         <label style={styles.label}>Target Delivery Address</label>
