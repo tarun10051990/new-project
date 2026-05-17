@@ -53,6 +53,14 @@ public class UserService {
         return userRepository.findByRoleAndDisplayNameContainingIgnoreCaseOrderByCreatedAtDesc("PREMIUM", query);
     }
 
+    public List<User> getAllCustomers() {
+        return userRepository.findByRoleInOrderByCreatedAtDesc(java.util.List.of("PREMIUM", "DEMO"));
+    }
+
+    public List<User> searchCustomers(String query) {
+        return userRepository.findByRoleInAndDisplayNameContainingIgnoreCaseOrderByCreatedAtDesc(java.util.List.of("PREMIUM", "DEMO"), query);
+    }
+
     public void deleteUser(Long id) {
         userRepository.deleteById(id);
     }

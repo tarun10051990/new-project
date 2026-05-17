@@ -32,9 +32,9 @@ public class AdminController {
     public ResponseEntity<?> getCustomers(@RequestParam(required = false) String search) {
         List<User> customers;
         if (search != null && !search.isBlank()) {
-            customers = userService.searchPremiumCustomers(search);
+            customers = userService.searchCustomers(search);
         } else {
-            customers = userService.getAllPremiumCustomers();
+            customers = userService.getAllCustomers();
         }
         List<Map<String, Object>> result = new ArrayList<>();
         for (User c : customers) {
@@ -44,6 +44,7 @@ public class AdminController {
             map.put("displayName", c.getDisplayName());
             map.put("email", c.getEmail());
             map.put("credits", c.getCredits());
+            map.put("role", c.getRole());
             map.put("status", c.getStatus());
             map.put("createdAt", c.getCreatedAt());
             map.put("totalAccounts", accountService.countByUserId(c.getId()));
@@ -72,7 +73,9 @@ public class AdminController {
         customer.setDisplayName(displayName != null ? displayName : "User");
         customer.setEmail(email);
         customer.setCredits(credits);
-        customer.setRole("PREMIUM");
+        String role = body.get("role") != null ? (String) body.get("role") : "PREMIUM";
+        if (!"PREMIUM".equals(role) && !"DEMO".equals(role)) role = "PREMIUM";
+        customer.setRole(role);
         customer.setStatus("Active");
 
         User saved = userService.save(customer);
@@ -84,6 +87,7 @@ public class AdminController {
                 "displayName", saved.getDisplayName(),
                 "email", saved.getEmail() != null ? saved.getEmail() : "",
                 "credits", saved.getCredits(),
+                "role", saved.getRole(),
                 "status", saved.getStatus()
             )
         ));
@@ -96,6 +100,10 @@ public class AdminController {
             if (body.containsKey("email")) customer.setEmail((String) body.get("email"));
             if (body.containsKey("status")) customer.setStatus((String) body.get("status"));
             if (body.containsKey("credits")) customer.setCredits(((Number) body.get("credits")).doubleValue());
+            if (body.containsKey("role")) {
+                String role = (String) body.get("role");
+                if ("PREMIUM".equals(role) || "DEMO".equals(role)) customer.setRole(role);
+            }
             User updated = userService.save(customer);
             return ResponseEntity.ok(Map.of("message", "Customer updated", "customer", Map.of(
                 "id", updated.getId(),
@@ -103,6 +111,7 @@ public class AdminController {
                 "displayName", updated.getDisplayName(),
                 "email", updated.getEmail() != null ? updated.getEmail() : "",
                 "credits", updated.getCredits(),
+                "role", updated.getRole(),
                 "status", updated.getStatus()
             )));
         }).orElse(ResponseEntity.notFound().build());
@@ -189,7 +198,7 @@ public class AdminController {
 
     @GetMapping("/dashboard")
     public ResponseEntity<?> getDashboardStats() {
-        List<User> customers = userService.getAllPremiumCustomers();
+        List<User> customers = userService.getAllCustomers();
         long totalCustomers = customers.size();
         long activeCustomers = customers.stream().filter(c -> "Active".equals(c.getStatus())).count();
         double totalCreditsAllocated = customers.stream().mapToDouble(User::getCredits).sum();
@@ -209,14 +218,19 @@ public class AdminController {
             totalAccounts += accountService.countByUserId(c.getId());
         }
 
-        return ResponseEntity.ok(Map.of(
-            "totalCustomers", totalCustomers,
-            "activeCustomers", activeCustomers,
-            "totalCreditsAllocated", totalCreditsAllocated,
-            "totalOrders", totalOrders,
-            "todaysOrders", todaysOrders,
-            "totalRevenue", totalRevenue,
-            "totalAccounts", totalAccounts
+        long premiumCustomers = customers.stream().filter(c -> "PREMIUM".equals(c.getRole())).count();
+        long demoCustomers = customers.stream().filter(c -> "DEMO".equals(c.getRole())).count();
+
+        return ResponseEntity.ok(Map.ofEntries(
+            Map.entry("totalCustomers", totalCustomers),
+            Map.entry("activeCustomers", activeCustomers),
+            Map.entry("premiumCustomers", premiumCustomers),
+            Map.entry("demoCustomers", demoCustomers),
+            Map.entry("totalCreditsAllocated", totalCreditsAllocated),
+            Map.entry("totalOrders", totalOrders),
+            Map.entry("todaysOrders", todaysOrders),
+            Map.entry("totalRevenue", totalRevenue),
+            Map.entry("totalAccounts", totalAccounts)
         ));
     }
 }

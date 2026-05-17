@@ -2,8 +2,10 @@ package com.jiomart.bulk.controller;
 
 import com.jiomart.bulk.model.BulkOrder;
 import com.jiomart.bulk.model.CartItem;
+import com.jiomart.bulk.model.User;
 import com.jiomart.bulk.service.OrderService;
 import com.jiomart.bulk.service.AccountService;
+import com.jiomart.bulk.service.UserService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
@@ -14,10 +16,12 @@ import java.util.Map;
 public class OrderController {
     private final OrderService orderService;
     private final AccountService accountService;
+    private final UserService userService;
 
-    public OrderController(OrderService orderService, AccountService accountService) {
+    public OrderController(OrderService orderService, AccountService accountService, UserService userService) {
         this.orderService = orderService;
         this.accountService = accountService;
+        this.userService = userService;
     }
 
     @GetMapping("/{userId}")
@@ -59,8 +63,14 @@ public class OrderController {
 
     @PostMapping
     public ResponseEntity<?> createOrder(@RequestBody Map<String, Object> body) {
+        Long userId = ((Number) body.get("userId")).longValue();
+        User user = userService.findById(userId).orElse(null);
+        if (user != null && "DEMO".equals(user.getRole())) {
+            return ResponseEntity.status(403).body(Map.of("error", "Demo users cannot place orders. Upgrade to Premium."));
+        }
+
         BulkOrder order = new BulkOrder();
-        order.setUserId(((Number) body.get("userId")).longValue());
+        order.setUserId(userId);
         order.setAddressId(body.get("addressId") != null ? ((Number) body.get("addressId")).longValue() : null);
         order.setAccountId(body.get("accountId") != null ? ((Number) body.get("accountId")).longValue() : null);
         order.setRepeatCount(body.get("repeatCount") != null ? ((Number) body.get("repeatCount")).intValue() : 1);

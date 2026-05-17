@@ -10,6 +10,7 @@ import AccountOrdersModal from './AccountOrdersModal';
 
 export default function ConnectedAccounts() {
   const { user } = useAuth();
+  const isDemo = user?.role === 'DEMO';
   const [accounts, setAccounts] = useState([]);
   const [selected, setSelected] = useState(new Set());
   const [searchQuery, setSearchQuery] = useState('');
@@ -118,15 +119,19 @@ export default function ConnectedAccounts() {
           <button style={styles.toolBtn}>Select ({selected.size}) Orders</button>
           <button onClick={() => setSelected(new Set())} style={styles.toolBtn}>Unselect All</button>
           <button onClick={loadAccounts} style={styles.toolBtn}><RefreshCw size={12} /> Refresh</button>
-          <button onClick={handleDelete} style={{ ...styles.toolBtn, color: 'var(--danger)' }}>
-            <Trash2 size={12} /> Delete
-          </button>
-          <button style={{ ...styles.toolBtn, color: 'var(--warning)' }}>
-            <Star size={12} /> Buy Accounts
-          </button>
-          <button onClick={() => setShowAddModal(true)} style={styles.addBtn}>
-            <Plus size={12} /> Add Account
-          </button>
+          {!isDemo && (
+            <>
+              <button onClick={handleDelete} style={{ ...styles.toolBtn, color: 'var(--danger)' }}>
+                <Trash2 size={12} /> Delete
+              </button>
+              <button style={{ ...styles.toolBtn, color: 'var(--warning)' }}>
+                <Star size={12} /> Buy Accounts
+              </button>
+              <button onClick={() => setShowAddModal(true)} style={styles.addBtn}>
+                <Plus size={12} /> Add Account
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -172,12 +177,14 @@ export default function ConnectedAccounts() {
                       >
                         <ClipboardList size={12} /> Orders
                       </button>
-                      <button
-                        onClick={async () => { await api.delete(`/accounts/${acc.id}`); loadAccounts(); }}
-                        style={styles.actionBtn}
-                      >
-                        <Trash2 size={12} />
-                      </button>
+                      {!isDemo && (
+                        <button
+                          onClick={async () => { await api.delete(`/accounts/${acc.id}`); loadAccounts(); }}
+                          style={styles.actionBtn}
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

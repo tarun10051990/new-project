@@ -55,6 +55,12 @@ export default function Header() {
       <div style={styles.bottomRow}>
         <div style={styles.userInfo}>
           <span style={styles.avatar}>👤 {user.displayName}</span>
+          <span style={{
+            fontSize: '11px', fontWeight: 600,
+            padding: '2px 8px', borderRadius: '4px',
+            background: user.role === 'PREMIUM' ? 'rgba(241,196,15,0.15)' : 'rgba(149,165,166,0.15)',
+            color: user.role === 'PREMIUM' ? '#f1c40f' : '#95a5a6',
+          }}>{user.role}</span>
           <span style={styles.credits}>💰 {user.credits.toFixed(2)} Cr</span>
         </div>
         <div style={styles.actions}>

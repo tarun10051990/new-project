@@ -10,4 +10,6 @@ public interface UserRepository extends JpaRepository<User, Long> {
     List<User> findByRole(String role);
     List<User> findByRoleOrderByCreatedAtDesc(String role);
     List<User> findByRoleAndDisplayNameContainingIgnoreCaseOrderByCreatedAtDesc(String role, String name);
+    List<User> findByRoleInOrderByCreatedAtDesc(List<String> roles);
+    List<User> findByRoleInAndDisplayNameContainingIgnoreCaseOrderByCreatedAtDesc(List<String> roles, String name);
 }

@@ -1,6 +1,6 @@
 import { Plus, X, Download, Trash2 } from 'lucide-react';
 
-export default function CartBlock({ cart, cartIndex, onUpdate, onRemove, onAddProduct, onRemoveProduct }) {
+export default function CartBlock({ cart, cartIndex, onUpdate, onRemove, onAddProduct, onRemoveProduct, disabled }) {
   const updateProduct = (prodIdx, field, value) => {
     const products = [...cart.products];
     products[prodIdx] = { ...products[prodIdx], [field]: value };
