@@ -5,7 +5,7 @@ import api from '../utils/api';
 import toast from 'react-hot-toast';
 import {
   Radio, RefreshCw, ArrowLeft, MapPin, Clock, Package,
-  XCircle, Eye, ChevronDown, ChevronUp
+  XCircle, Eye, ChevronDown, ChevronUp, Truck, Phone, Navigation
 } from 'lucide-react';
 
 export default function OtpTracker() {
@@ -16,12 +16,21 @@ export default function OtpTracker() {
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [expandedId, setExpandedId] = useState(null);
 
+  const [trackingDetails, setTrackingDetails] = useState({});
+
   const loadTrackings = useCallback(async () => {
     if (!user) return;
     try {
       const { data } = await api.get(`/tracking/${user.id}/active`);
       setTrackings(data);
       setLastSync(new Date());
+
+      for (const t of data) {
+        try {
+          const { data: detail } = await api.get(`/jiomart/order-tracking/${t.orderId}`);
+          setTrackingDetails(prev => ({ ...prev, [t.orderId]: detail }));
+        } catch { /* ignore */ }
+      }
     } catch {
       toast.error('Failed to load tracking data');
     } finally {
@@ -141,17 +150,81 @@ export default function OtpTracker() {
 
               {expandedId === t.id && (
                 <div style={styles.cardBody}>
+                  {/* Order Tracking Timeline */}
+                  {trackingDetails[t.orderId]?.timeline && (
+                    <div style={styles.timelineSection}>
+                      <h4 style={styles.timelineTitle}>
+                        <Navigation size={14} /> Order Progress
+                      </h4>
+                      <div style={styles.timeline}>
+                        {trackingDetails[t.orderId].timeline.map((step, i) => (
+                          <div key={i} style={styles.timelineStep}>
+                            <div style={{
+                              ...styles.timelineDot,
+                              background: step.completed ? '#2ecc71' : 'var(--border)',
+                            }} />
+                            {i < trackingDetails[t.orderId].timeline.length - 1 && (
+                              <div style={{
+                                ...styles.timelineLine,
+                                background: step.completed ? '#2ecc71' : 'var(--border)',
+                              }} />
+                            )}
+                            <div style={styles.timelineContent}>
+                              <span style={{
+                                fontWeight: step.completed ? 600 : 400,
+                                color: step.completed ? 'var(--text-primary)' : 'var(--text-muted)',
+                              }}>{step.status}</span>
+                              {step.timestamp && (
+                                <span style={styles.timelineTime}>
+                                  {new Date(step.timestamp).toLocaleString()}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Rider Information */}
+                  {(t.riderName || trackingDetails[t.orderId]?.rider?.name) && (
+                    <div style={styles.riderSection}>
+                      <h4 style={styles.riderTitle}>
+                        <Truck size={14} /> Rider Information
+                      </h4>
+                      <div style={styles.riderInfo}>
+                        <div style={styles.riderRow}>
+                          <Truck size={14} color="var(--accent)" />
+                          <span><strong>{t.riderName || trackingDetails[t.orderId]?.rider?.name}</strong></span>
+                        </div>
+                        {(t.riderPhone || trackingDetails[t.orderId]?.rider?.phone) && (
+                          <div style={styles.riderRow}>
+                            <Phone size={14} color="var(--accent)" />
+                            <span>{t.riderPhone || trackingDetails[t.orderId]?.rider?.phone}</span>
+                          </div>
+                        )}
+                        {(t.riderLocation || trackingDetails[t.orderId]?.rider?.location) && (
+                          <div style={styles.riderRow}>
+                            <MapPin size={14} color="var(--accent)" />
+                            <span>{t.riderLocation || trackingDetails[t.orderId]?.rider?.location}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                   <div style={styles.detailGrid}>
                     <DetailRow label="JioMart Order ID" value={t.jioOrderId || '--'} />
+                    <DetailRow label="Current Status" value={trackingDetails[t.orderId]?.currentStatus || t.deliveryStatus || '--'} />
                     <DetailRow label="Account ID" value={t.accountId || '--'} />
                     <DetailRow label="Mobile" value={t.mobileNumber || '--'} />
                     <DetailRow label="Order Amount" value={t.orderAmount ? `Rs. ${t.orderAmount.toFixed(2)}` : '--'} />
-                    <DetailRow label="Estimated Delivery" value={t.estimatedDelivery || 'Pending'} />
+                    <DetailRow label="Estimated Delivery" value={trackingDetails[t.orderId]?.estimatedDelivery || t.estimatedDelivery || 'Pending'} />
                     <DetailRow label="Delivery Address" value={t.deliveryAddress || '--'} />
                     <DetailRow
                       label="Delivery OTP/PIN"
-                      value={t.deliveryOtp || 'Will appear when available in order history'}
-                      highlight={!!t.deliveryOtp}
+                      value={trackingDetails[t.orderId]?.deliveryOtp || t.deliveryOtp || 'Will appear when available in order history'}
+                      highlight={!!(trackingDetails[t.orderId]?.deliveryOtp || t.deliveryOtp)}
                     />
                     <DetailRow label="Last Synced" value={t.lastSyncedAt ? new Date(t.lastSyncedAt).toLocaleString() : '--'} />
                   </div>
@@ -459,5 +532,51 @@ const styles = {
     fontSize: '12px',
     cursor: 'pointer',
     fontWeight: 600,
+  },
+  timelineSection: {
+    padding: '16px 0',
+  },
+  timelineTitle: {
+    margin: '0 0 12px', fontSize: '14px', fontWeight: 600,
+    color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px',
+  },
+  timeline: {
+    display: 'flex', gap: '0', position: 'relative',
+    padding: '0 8px',
+  },
+  timelineStep: {
+    flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
+    position: 'relative',
+  },
+  timelineDot: {
+    width: '14px', height: '14px', borderRadius: '50%',
+    zIndex: 1, border: '2px solid var(--bg-secondary)',
+  },
+  timelineLine: {
+    position: 'absolute', top: '6px', left: '50%', right: '-50%',
+    height: '2px',
+  },
+  timelineContent: {
+    marginTop: '8px', textAlign: 'center', fontSize: '11px',
+    display: 'flex', flexDirection: 'column', gap: '2px',
+  },
+  timelineTime: {
+    fontSize: '10px', color: 'var(--text-muted)',
+  },
+  riderSection: {
+    padding: '16px', background: 'var(--bg-card)',
+    borderRadius: 'var(--radius)', border: '1px solid var(--border)',
+    marginBottom: '12px',
+  },
+  riderTitle: {
+    margin: '0 0 12px', fontSize: '14px', fontWeight: 600,
+    color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px',
+  },
+  riderInfo: {
+    display: 'flex', flexDirection: 'column', gap: '8px',
+  },
+  riderRow: {
+    display: 'flex', alignItems: 'center', gap: '8px',
+    fontSize: '13px', color: 'var(--text-primary)',
   },
 };

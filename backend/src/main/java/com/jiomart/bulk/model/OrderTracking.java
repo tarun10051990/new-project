@@ -26,6 +26,12 @@ public class OrderTracking {
     private Double orderAmount;
     private String deliveryAddress;
     private String mobileNumber;
+    private String riderName;
+    private String riderPhone;
+    private String riderLocation;
+    private Double riderLatitude;
+    private Double riderLongitude;
+    private String currentStatus;
     private LocalDateTime lastSyncedAt;
     private LocalDateTime createdAt = LocalDateTime.now();
     private LocalDateTime updatedAt = LocalDateTime.now();
@@ -58,6 +64,18 @@ public class OrderTracking {
     public void setDeliveryAddress(String deliveryAddress) { this.deliveryAddress = deliveryAddress; }
     public String getMobileNumber() { return mobileNumber; }
     public void setMobileNumber(String mobileNumber) { this.mobileNumber = mobileNumber; }
+    public String getRiderName() { return riderName; }
+    public void setRiderName(String riderName) { this.riderName = riderName; }
+    public String getRiderPhone() { return riderPhone; }
+    public void setRiderPhone(String riderPhone) { this.riderPhone = riderPhone; }
+    public String getRiderLocation() { return riderLocation; }
+    public void setRiderLocation(String riderLocation) { this.riderLocation = riderLocation; }
+    public Double getRiderLatitude() { return riderLatitude; }
+    public void setRiderLatitude(Double riderLatitude) { this.riderLatitude = riderLatitude; }
+    public Double getRiderLongitude() { return riderLongitude; }
+    public void setRiderLongitude(Double riderLongitude) { this.riderLongitude = riderLongitude; }
+    public String getCurrentStatus() { return currentStatus; }
+    public void setCurrentStatus(String currentStatus) { this.currentStatus = currentStatus; }
     public LocalDateTime getLastSyncedAt() { return lastSyncedAt; }
     public void setLastSyncedAt(LocalDateTime lastSyncedAt) { this.lastSyncedAt = lastSyncedAt; }
     public LocalDateTime getCreatedAt() { return createdAt; }
