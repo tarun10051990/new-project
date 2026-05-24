@@ -1,0 +1,23 @@
+{
+  "jiomart": {
+    "loginUrl": "https://www.jiomart.com/",
+    "mobileNumber": "YOUR_MOBILE_NUMBER",
+    "headless": false,
+    "slowMo": 100,
+    "timeout": 60000
+  },
+  "delivery": {
+    "pincode": "400001",
+    "addressIndex": 0
+  },
+  "products": [
+    {
+      "url": "https://www.jiomart.com/p/groceries/example-product/590000000",
+      "quantity": 1
+    }
+  ],
+  "order": {
+    "paymentMethod": "COD",
+    "couponCode": ""
+  }
+}
