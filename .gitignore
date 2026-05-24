@@ -20,3 +20,10 @@ frontend/dist/
 .idea/
 .vscode/
 *.iml
+
+# Bot
+bot/node_modules/
+bot/config.json
+bot/cookies.json
+bot/storage-state.json
+bot/screenshot.png

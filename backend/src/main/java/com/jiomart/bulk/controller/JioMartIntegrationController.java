@@ -1,12 +1,17 @@
 package com.jiomart.bulk.controller;
 
 import com.jiomart.bulk.model.Address;
+import com.jiomart.bulk.model.BulkOrder;
+import com.jiomart.bulk.model.CartItem;
 import com.jiomart.bulk.model.ConnectedAccount;
 import com.jiomart.bulk.service.AccountService;
 import com.jiomart.bulk.service.AddressService;
 import com.jiomart.bulk.service.JioMartApiService;
+import com.jiomart.bulk.service.OrderService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.http.*;
 import java.util.*;
 
 @RestController
@@ -16,14 +21,22 @@ public class JioMartIntegrationController {
     private final AddressService addressService;
     private final com.jiomart.bulk.service.TrackingService trackingService;
     private final JioMartApiService jioMartApiService;
+    private final OrderService orderService;
+    private final RestTemplate botRestTemplate;
+
+    private static final String BOT_SERVICE_URL = System.getenv("BOT_SERVICE_URL") != null
+            ? System.getenv("BOT_SERVICE_URL") : "http://localhost:3001";
 
     public JioMartIntegrationController(AccountService accountService, AddressService addressService,
                                          com.jiomart.bulk.service.TrackingService trackingService,
-                                         JioMartApiService jioMartApiService) {
+                                         JioMartApiService jioMartApiService,
+                                         OrderService orderService) {
         this.accountService = accountService;
         this.addressService = addressService;
         this.trackingService = trackingService;
         this.jioMartApiService = jioMartApiService;
+        this.orderService = orderService;
+        this.botRestTemplate = new RestTemplate();
     }
 
     @PostMapping("/fetch-addresses/{accountId}")
@@ -289,19 +302,87 @@ public class JioMartIntegrationController {
             return ResponseEntity.notFound().build();
         }
 
+        String accessToken = account.getAccessToken();
+        String refreshToken = account.getRefreshToken();
+
+        if (accessToken == null || accessToken.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of(
+                "error", "No access token found for this account. Please add cookies via Cookie Converter."
+            ));
+        }
+
+        // Fetch order details: cart items and address
+        BulkOrder order = orderService.findById(orderId).orElse(null);
+        List<CartItem> cartItems = orderService.getCartItems(orderId);
+
+        // Build product list for the bot
+        List<Map<String, Object>> products = new ArrayList<>();
+        for (CartItem item : cartItems) {
+            Map<String, Object> prod = new LinkedHashMap<>();
+            prod.put("productUrl", item.getProductUrl());
+            prod.put("quantity", item.getQuantity());
+            products.add(prod);
+        }
+
+        // Build address object for the bot
+        Map<String, Object> addressData = new LinkedHashMap<>();
+        if (order != null && order.getAddressId() != null) {
+            Address addr = addressService.findById(order.getAddressId()).orElse(null);
+            if (addr != null) {
+                addressData.put("fullName", addr.getFullName());
+                addressData.put("mobileNo", addr.getMobileNo());
+                addressData.put("pincode", addr.getPincode());
+                addressData.put("flatHouseNo", addr.getFlatHouseNo());
+                addressData.put("city", addr.getCity());
+                addressData.put("state", addr.getState());
+            }
+        }
+
+        String couponCode = order != null ? order.getCouponCode() : null;
+
+        // Call the bot service to execute the real JioMart order
+        Map<String, Object> botPayload = new LinkedHashMap<>();
+        botPayload.put("accessToken", accessToken);
+        botPayload.put("refreshToken", refreshToken != null ? refreshToken : "");
+        botPayload.put("products", products);
+        botPayload.put("address", addressData);
+        botPayload.put("couponCode", couponCode != null ? couponCode : "");
+        botPayload.put("orderId", orderId);
+
         String jioOrderId = "JIO-" + orderId + "-" + System.currentTimeMillis() % 100000;
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("jioOrderId", jioOrderId);
+        result.put("accountId", accountId);
+        result.put("paymentMethod", "COD");
+
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(botPayload, headers);
+
+            ResponseEntity<Map> botResponse = botRestTemplate.exchange(
+                BOT_SERVICE_URL + "/execute-order",
+                HttpMethod.POST,
+                entity,
+                Map.class
+            );
+
+            Map<String, Object> botResult = botResponse.getBody();
+            result.put("botResponse", botResult);
+            result.put("orderPlacedOnJiomart", botResult != null && Boolean.TRUE.equals(botResult.get("success")));
+            result.put("message", botResult != null ? botResult.get("message") : "Bot execution completed");
+        } catch (Exception e) {
+            System.err.println("Bot service call failed: " + e.getMessage());
+            result.put("orderPlacedOnJiomart", false);
+            result.put("message", "Bot service unavailable. Order saved but not placed on JioMart.");
+            result.put("botError", e.getMessage());
+        }
 
         account.setTotalOrders(account.getTotalOrders() + 1);
         accountService.save(account);
 
-        return ResponseEntity.ok(Map.of(
-            "message", "Order placed on JioMart account with COD",
-            "jioOrderId", jioOrderId,
-            "accountId", accountId,
-            "paymentMethod", "COD",
-            "orderPlacedOnJiomart", true,
-            "estimatedDelivery", java.time.LocalDate.now().plusDays(3).toString()
-        ));
+        result.put("estimatedDelivery", java.time.LocalDate.now().plusDays(3).toString());
+        return ResponseEntity.ok(result);
     }
 
     @GetMapping("/order-tracking/{orderId}")
