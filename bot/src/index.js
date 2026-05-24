@@ -1,164 +1,214 @@
+import express from 'express';
 import { chromium } from 'playwright';
-import { readFileSync, writeFileSync, existsSync } from 'fs';
-import { resolve, dirname } from 'path';
-import { fileURLToPath } from 'url';
-import { loadConfig, parseArgs } from './config.js';
-import { loginWithOtp, loginWithCookies } from './login.js';
-import { addProductToCart, addMultipleProducts, viewCart, getCartSummary, setPincode } from './cart.js';
-import { placeOrder, proceedToCheckout } from './order.js';
-import { log, prompt, sleep } from './utils.js';
+import { BOT_PORT, HEADLESS, SLOW_MO } from './config.js';
+import { loginWithCookies, loginWithCookieFile } from './login.js';
+import { addMultipleProducts, viewCart } from './cart.js';
+import { executeOrderFlow, proceedToCheckout } from './order.js';
+import { log, sleep } from './utils.js';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const COOKIES_PATH = resolve(__dirname, '..', 'cookies.json');
-const STORAGE_PATH = resolve(__dirname, '..', 'storage-state.json');
+const app = express();
+app.use(express.json({ limit: '10mb' }));
 
-async function main() {
-  const config = loadConfig();
-  const args = parseArgs();
+// Health check
+app.get('/health', (_req, res) => {
+  res.json({ status: 'ok', service: 'jiomart-bot' });
+});
 
-  if (args.headless) {
-    config.jiomart.headless = true;
+/**
+ * POST /execute-order
+ * Main endpoint called by the Spring Boot backend when "START BULK ORDERS" is clicked.
+ *
+ * Request body:
+ * {
+ *   "accessToken": "cra_access_token value",
+ *   "refreshToken": "cra_refresh_token value",
+ *   "products": [{ "productUrl": "...", "quantity": 1 }],
+ *   "address": { "fullName": "...", "pincode": "...", "city": "...", ... },
+ *   "couponCode": "SAVE10",
+ *   "orderId": 123
+ * }
+ */
+app.post('/execute-order', async (req, res) => {
+  const { accessToken, refreshToken, products, address, couponCode, orderId } = req.body;
+
+  if (!accessToken) {
+    return res.status(400).json({ success: false, error: 'accessToken is required' });
+  }
+  if (!products || products.length === 0) {
+    return res.status(400).json({ success: false, error: 'At least one product is required' });
   }
 
-  log('BOT', '=== JioMart Automation Bot ===');
-  log('BOT', `Mode: ${args.loginOnly ? 'Login Only' : args.placeOrder ? 'Full Order' : 'Add to Cart'}`);
-  log('BOT', `Headless: ${config.jiomart.headless}`);
-  log('BOT', `Products: ${config.products.length}`);
+  log('BOT', `=== Order #${orderId || 'N/A'} - Starting automation ===`);
+  log('BOT', `Products: ${products.length}, Coupon: ${couponCode || 'none'}`);
 
-  const browser = await chromium.launch({
-    headless: config.jiomart.headless,
-    slowMo: config.jiomart.slowMo,
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-blink-features=AutomationControlled',
-    ],
-  });
-
-  const context = await browser.newContext({
-    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    viewport: { width: 1366, height: 768 },
-    locale: 'en-IN',
-    timezoneId: 'Asia/Kolkata',
-  });
-
-  // Restore previous session if available
-  if (existsSync(STORAGE_PATH)) {
-    log('BOT', 'Restoring previous session...');
-    try {
-      const storageState = JSON.parse(readFileSync(STORAGE_PATH, 'utf-8'));
-      if (storageState.cookies) {
-        await context.addCookies(storageState.cookies);
-      }
-    } catch {
-      log('BOT', 'Could not restore session, starting fresh');
-    }
-  }
-
-  const page = await context.newPage();
-
-  // Block unnecessary resources for speed
-  await page.route('**/*.{png,jpg,jpeg,gif,svg,ico,woff,woff2,ttf}', (route) => route.abort());
-
+  let browser;
   try {
-    // Step 1: Login
-    log('BOT', '--- Step 1: Login ---');
-    let loggedIn = false;
+    browser = await chromium.launch({
+      headless: HEADLESS,
+      slowMo: SLOW_MO,
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-blink-features=AutomationControlled'],
+    });
 
-    if (existsSync(COOKIES_PATH)) {
-      log('BOT', 'Found saved cookies, trying cookie-based login...');
-      const cookies = JSON.parse(readFileSync(COOKIES_PATH, 'utf-8'));
-      loggedIn = await loginWithCookies(page, cookies, config);
-    }
+    const context = await browser.newContext({
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      viewport: { width: 1366, height: 768 },
+      locale: 'en-IN',
+      timezoneId: 'Asia/Kolkata',
+    });
 
+    const page = await context.newPage();
+
+    // Step 1: Login with cookies
+    log('BOT', '--- Step 1: Cookie Login ---');
+    const loggedIn = await loginWithCookies(page, accessToken, refreshToken || '');
     if (!loggedIn) {
-      loggedIn = await loginWithOtp(page, config);
+      log('BOT', 'Login failed, but continuing with automation...');
     }
 
-    // Save session state
-    await saveSession(context);
+    // Step 2: Add products to cart
+    log('BOT', '--- Step 2: Add Products to Cart ---');
+    const cartResults = await addMultipleProducts(page, products);
+    const successCount = cartResults.filter((r) => r.added).length;
+    log('BOT', `Added ${successCount}/${cartResults.length} products to cart`);
 
-    if (args.loginOnly) {
-      log('BOT', 'Login-only mode. Exiting.');
+    if (successCount === 0) {
       await browser.close();
-      return;
+      return res.json({
+        success: false,
+        error: 'No products could be added to cart',
+        cartResults,
+        orderId,
+      });
     }
 
-    // Step 2: Set pincode
-    if (config.delivery.pincode) {
-      log('BOT', '--- Step 2: Set Pincode ---');
-      await setPincode(page, config.delivery.pincode);
-    }
-
-    // Step 3: Add products to cart
-    if (config.products.length > 0) {
-      log('BOT', '--- Step 3: Add Products to Cart ---');
-      const results = await addMultipleProducts(page, config.products);
-
-      log('BOT', '\n=== Cart Results ===');
-      for (const r of results) {
-        log('BOT', `  ${r.added ? '[OK]' : '[FAIL]'} ${r.url} (qty: ${r.quantity})`);
-      }
-
-      const successCount = results.filter((r) => r.added).length;
-      log('BOT', `Added ${successCount}/${results.length} products to cart`);
-
-      if (successCount === 0) {
-        log('BOT', 'No products added to cart. Exiting.');
-        await browser.close();
-        return;
-      }
-    }
-
-    // Step 4: View cart
-    log('BOT', '--- Step 4: View Cart ---');
+    // Step 3: Go to cart
+    log('BOT', '--- Step 3: View Cart ---');
     await viewCart(page);
-    const summary = await getCartSummary(page);
-    log('BOT', `Cart: ${summary.itemCount} items, Total: ${summary.totalPrice || 'N/A'}`);
 
-    // Step 5: Place order (if requested)
-    if (args.placeOrder) {
-      log('BOT', '--- Step 5: Place Order ---');
-      await proceedToCheckout(page);
-      const orderPlaced = await placeOrder(page, config);
+    // Step 4: Proceed to checkout
+    log('BOT', '--- Step 4: Checkout ---');
+    await proceedToCheckout(page);
 
-      if (orderPlaced) {
-        log('BOT', '=== ORDER PLACED SUCCESSFULLY ===');
-      } else {
-        log('BOT', '=== ORDER PLACEMENT FAILED ===');
-      }
-    } else {
-      log('BOT', 'Products added to cart. Run with --place-order to place the order.');
-    }
+    // Step 5: Execute order flow (address, coupon, COD, place order)
+    log('BOT', '--- Step 5: Place Order ---');
+    const orderResult = await executeOrderFlow(page, {
+      address: address || {},
+      couponCode: couponCode || '',
+    });
 
-    // Save session state after everything
-    await saveSession(context);
+    log('BOT', `=== Order #${orderId || 'N/A'} - ${orderResult.success ? 'SUCCESS' : 'COMPLETED'} ===`);
 
+    await browser.close();
+
+    return res.json({
+      success: orderResult.success,
+      orderId,
+      cartResults,
+      orderSteps: orderResult.steps,
+      message: orderResult.success
+        ? 'Order placed successfully on JioMart!'
+        : 'Automation completed. Order may need manual verification.',
+    });
   } catch (err) {
     log('BOT', `Error: ${err.message}`);
-    console.error(err);
-  } finally {
-    log('BOT', 'Taking final screenshot...');
-    await page.screenshot({ path: resolve(__dirname, '..', 'screenshot.png'), fullPage: true });
-    log('BOT', 'Closing browser...');
-    await browser.close();
-    log('BOT', 'Done.');
+    if (browser) await browser.close();
+    return res.status(500).json({
+      success: false,
+      error: err.message,
+      orderId,
+    });
   }
-}
+});
 
-async function saveSession(context) {
+/**
+ * POST /login-test
+ * Test login with cookies to verify they are valid.
+ */
+app.post('/login-test', async (req, res) => {
+  const { accessToken, refreshToken, cookieData } = req.body;
+
+  let browser;
   try {
-    const cookies = await context.cookies();
-    const storageState = { cookies };
-    writeFileSync(STORAGE_PATH, JSON.stringify(storageState, null, 2));
-    writeFileSync(COOKIES_PATH, JSON.stringify(cookies, null, 2));
-    log('BOT', 'Session saved for next run');
-  } catch (err) {
-    log('BOT', `Could not save session: ${err.message}`);
-  }
-}
+    browser = await chromium.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    });
 
-main().catch((err) => {
-  console.error('Fatal error:', err);
-  process.exit(1);
+    const context = await browser.newContext({
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      viewport: { width: 1366, height: 768 },
+    });
+
+    const page = await context.newPage();
+    let loggedIn = false;
+
+    if (accessToken) {
+      loggedIn = await loginWithCookies(page, accessToken, refreshToken || '');
+    } else if (cookieData) {
+      loggedIn = await loginWithCookieFile(page, cookieData);
+    } else {
+      await browser.close();
+      return res.status(400).json({ success: false, error: 'Provide accessToken or cookieData' });
+    }
+
+    await browser.close();
+    return res.json({ success: loggedIn, message: loggedIn ? 'Login successful' : 'Login failed' });
+  } catch (err) {
+    if (browser) await browser.close();
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * POST /add-to-cart
+ * Add products to JioMart cart without placing an order.
+ */
+app.post('/add-to-cart', async (req, res) => {
+  const { accessToken, refreshToken, products } = req.body;
+
+  if (!accessToken) {
+    return res.status(400).json({ success: false, error: 'accessToken is required' });
+  }
+
+  let browser;
+  try {
+    browser = await chromium.launch({
+      headless: HEADLESS,
+      slowMo: SLOW_MO,
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    });
+
+    const context = await browser.newContext({
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      viewport: { width: 1366, height: 768 },
+      locale: 'en-IN',
+      timezoneId: 'Asia/Kolkata',
+    });
+
+    const page = await context.newPage();
+
+    await loginWithCookies(page, accessToken, refreshToken || '');
+    const cartResults = await addMultipleProducts(page, products || []);
+
+    await browser.close();
+    return res.json({
+      success: true,
+      cartResults,
+      added: cartResults.filter((r) => r.added).length,
+      total: cartResults.length,
+    });
+  } catch (err) {
+    if (browser) await browser.close();
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.listen(BOT_PORT, () => {
+  log('BOT', `JioMart Bot Service running on port ${BOT_PORT}`);
+  log('BOT', `Headless: ${HEADLESS}, SlowMo: ${SLOW_MO}ms`);
+  log('BOT', 'Endpoints:');
+  log('BOT', '  POST /execute-order  - Full order flow');
+  log('BOT', '  POST /login-test     - Test cookie login');
+  log('BOT', '  POST /add-to-cart    - Add products to cart');
+  log('BOT', '  GET  /health         - Health check');
 });

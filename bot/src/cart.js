@@ -1,90 +1,15 @@
-import { waitForSelector, safeClick, sleep, log } from './utils.js';
-
-export async function setPincode(page, pincode) {
-  if (!pincode) return;
-
-  log('CART', `Setting delivery pincode: ${pincode}`);
-
-  try {
-    // Look for pincode/location selector
-    const pincodeSelectors = [
-      'text=Enter pincode',
-      'text=Select Location',
-      'text=Deliver to',
-      '[class*="pincode"]',
-      '[class*="location"]',
-      '[data-testid="pincode"]',
-    ];
-
-    for (const sel of pincodeSelectors) {
-      try {
-        const el = await page.$(sel);
-        if (el && await el.isVisible()) {
-          await el.click();
-          await sleep(1000);
-          break;
-        }
-      } catch {
-        continue;
-      }
-    }
-
-    // Find and fill pincode input
-    const inputSelectors = [
-      'input[placeholder*="pincode" i]',
-      'input[placeholder*="pin code" i]',
-      'input[name="pincode"]',
-      'input[type="tel"]',
-      'input[type="number"]',
-    ];
-
-    for (const sel of inputSelectors) {
-      try {
-        const input = await page.$(sel);
-        if (input && await input.isVisible()) {
-          await input.fill('');
-          await input.type(pincode, { delay: 50 });
-          await sleep(500);
-
-          // Click apply/submit
-          const applySelectors = [
-            'button:has-text("Apply")',
-            'button:has-text("Check")',
-            'button:has-text("Submit")',
-            'button[type="submit"]',
-          ];
-
-          for (const btnSel of applySelectors) {
-            const clicked = await safeClick(page, btnSel, { timeout: 3000 });
-            if (clicked) break;
-          }
-
-          await sleep(1000);
-          log('CART', 'Pincode set successfully');
-          return true;
-        }
-      } catch {
-        continue;
-      }
-    }
-  } catch (err) {
-    log('CART', `Failed to set pincode: ${err.message}`);
-  }
-
-  return false;
-}
+import { safeClick, safeType, sleep, log } from './utils.js';
 
 export async function addProductToCart(page, productUrl, quantity = 1) {
-  log('CART', `Adding product: ${productUrl}`);
+  log('CART', `Adding product: ${productUrl} (qty: ${quantity})`);
 
-  await page.goto(productUrl, { waitUntil: 'domcontentloaded' });
+  await page.goto(productUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
   await sleep(3000);
 
-  // Check if product page loaded
   const title = await page.title();
-  log('CART', `Product page title: ${title}`);
+  log('CART', `Product page: ${title}`);
 
-  // Check for "Add to Cart" button
+  // Look for "Add to Cart" button
   const addToCartSelectors = [
     'button:has-text("Add to Cart")',
     'button:has-text("ADD TO CART")',
@@ -114,12 +39,7 @@ export async function addProductToCart(page, productUrl, quantity = 1) {
 
   if (!addedToCart) {
     // Try "Buy Now" as fallback
-    const buyNowSelectors = [
-      'button:has-text("Buy Now")',
-      'button:has-text("BUY NOW")',
-    ];
-
-    for (const sel of buyNowSelectors) {
+    for (const sel of ['button:has-text("Buy Now")', 'button:has-text("BUY NOW")']) {
       try {
         const btn = await page.$(sel);
         if (btn && await btn.isVisible()) {
@@ -141,7 +61,7 @@ export async function addProductToCart(page, productUrl, quantity = 1) {
 
   await sleep(2000);
 
-  // Handle quantity if more than 1
+  // Set quantity if more than 1
   if (quantity > 1) {
     await setQuantity(page, quantity);
   }
@@ -153,7 +73,7 @@ export async function addProductToCart(page, productUrl, quantity = 1) {
 async function setQuantity(page, quantity) {
   log('CART', `Setting quantity to ${quantity}`);
 
-  // Try increment button approach
+  // Try increment button
   const incrementSelectors = [
     'button:has-text("+")',
     '[class*="increment"]',
@@ -176,7 +96,7 @@ async function setQuantity(page, quantity) {
     }
   }
 
-  // Alternatively try a quantity input
+  // Try direct quantity input
   const qtyInputSelectors = [
     'input[name="quantity"]',
     'input[name="qty"]',
@@ -202,17 +122,11 @@ export async function addMultipleProducts(page, products) {
   const results = [];
 
   for (const product of products) {
-    const success = await addProductToCart(page, product.url, product.quantity || 1);
-    results.push({
-      url: product.url,
-      quantity: product.quantity || 1,
-      added: success,
-    });
-
-    if (success) {
-      // Navigate back if needed for next product
-      await sleep(1000);
-    }
+    const url = product.productUrl || product.url;
+    const qty = product.quantity || 1;
+    const success = await addProductToCart(page, url, qty);
+    results.push({ url, quantity: qty, added: success });
+    if (success) await sleep(1000);
   }
 
   return results;
@@ -224,7 +138,6 @@ export async function viewCart(page) {
   const cartSelectors = [
     'a[href*="/cart"]',
     'a[href*="viewcart"]',
-    'text=Cart',
     'text=View Cart',
     'text=Go to Cart',
     '[class*="cart-icon"]',
@@ -245,66 +158,8 @@ export async function viewCart(page) {
     }
   }
 
-  // Try direct URL
+  // Direct URL fallback
   await page.goto('https://www.jiomart.com/cart', { waitUntil: 'domcontentloaded' });
   await sleep(3000);
   return true;
-}
-
-export async function getCartSummary(page) {
-  log('CART', 'Getting cart summary...');
-
-  const summary = {
-    itemCount: 0,
-    totalPrice: '',
-    items: [],
-  };
-
-  try {
-    // Try to read cart count
-    const countSelectors = [
-      '[class*="cart-count"]',
-      '[class*="badge"]',
-      '[class*="item-count"]',
-    ];
-
-    for (const sel of countSelectors) {
-      try {
-        const el = await page.$(sel);
-        if (el) {
-          const text = await el.textContent();
-          const num = parseInt(text.replace(/\D/g, ''), 10);
-          if (!isNaN(num)) {
-            summary.itemCount = num;
-            break;
-          }
-        }
-      } catch {
-        continue;
-      }
-    }
-
-    // Try to read total
-    const totalSelectors = [
-      '[class*="total"] [class*="price"]',
-      '[class*="grand-total"]',
-      'text=/₹[\\d,.]+/',
-    ];
-
-    for (const sel of totalSelectors) {
-      try {
-        const el = await page.$(sel);
-        if (el) {
-          summary.totalPrice = await el.textContent();
-          break;
-        }
-      } catch {
-        continue;
-      }
-    }
-  } catch (err) {
-    log('CART', `Error reading cart summary: ${err.message}`);
-  }
-
-  return summary;
 }

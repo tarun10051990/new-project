@@ -1,11 +1,19 @@
-# JioMart Automation Bot
+# JioMart Bot Service
 
-Playwright-based bot that automates logging into JioMart, adding products to cart, and placing orders.
+A Playwright-based automation service that integrates with the ELITe JioMart Bulk Order Portal to automate ordering on JioMart.
 
-## Prerequisites
+## Architecture
 
-- **Node.js 18+**
-- **Playwright** (installed via `npm install`)
+The bot runs as a standalone HTTP service (default: port 3001) that the Spring Boot backend calls when users click "START BULK ORDERS" in the portal.
+
+**Flow:**
+1. User adds products, selects address, and clicks "START BULK ORDERS" in the portal
+2. Backend creates the order record and calls `/api/jiomart/place-order-cod`
+3. Backend fetches account cookies (accessToken/refreshToken), cart items, and address
+4. Backend sends a POST request to the bot service at `http://localhost:3001/execute-order`
+5. Bot launches a Playwright browser, injects cookies, logs into JioMart
+6. Bot adds all products to the JioMart cart, applies coupons, selects COD, and places the order
+7. Bot returns the result to the backend
 
 ## Setup
 
@@ -15,124 +23,63 @@ npm install
 npx playwright install chromium
 ```
 
-Copy the example config and fill in your details:
+## Running
 
 ```bash
-cp config.example.json config.json
+# Start the bot service
+npm start
+
+# Or with environment variables
+BOT_PORT=3001 BOT_HEADLESS=true npm start
 ```
 
-## Configuration
+## Environment Variables
 
-Edit `config.json`:
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `BOT_PORT` | `3001` | Port the bot service listens on |
+| `BOT_HEADLESS` | `true` | Run browser in headless mode (`false` for debugging) |
+| `BOT_SLOW_MO` | `50` | Slow down actions by N ms (for debugging) |
 
+## API Endpoints
+
+### `POST /execute-order`
+Full order flow: login → add products → checkout → COD → place order.
+
+**Request:**
 ```json
 {
-  "jiomart": {
-    "mobileNumber": "9876543210",
-    "headless": false,
-    "slowMo": 100,
-    "timeout": 60000
-  },
-  "delivery": {
-    "pincode": "400001",
-    "addressIndex": 0
-  },
+  "accessToken": "cra_access_token_value",
+  "refreshToken": "cra_refresh_token_value",
   "products": [
-    {
-      "url": "https://www.jiomart.com/p/groceries/your-product/12345",
-      "quantity": 2
-    }
+    { "productUrl": "https://www.jiomart.com/p/...", "quantity": 2 }
   ],
-  "order": {
-    "paymentMethod": "COD",
-    "couponCode": ""
-  }
+  "address": {
+    "fullName": "John Doe",
+    "pincode": "400001",
+    "city": "Mumbai"
+  },
+  "couponCode": "SAVE10",
+  "orderId": 123
 }
 ```
 
-### Config Options
+### `POST /login-test`
+Test if cookies are valid.
 
-| Field | Description |
-|-------|-------------|
-| `jiomart.mobileNumber` | Your JioMart registered mobile number |
-| `jiomart.headless` | Run browser without GUI (`true`/`false`) |
-| `jiomart.slowMo` | Delay between actions in ms (for stability) |
-| `delivery.pincode` | Delivery pincode |
-| `delivery.addressIndex` | Which saved address to use (0-based) |
-| `products[].url` | JioMart product page URL |
-| `products[].quantity` | Quantity to order |
-| `order.paymentMethod` | `COD`, `UPI`, `CARD`, `NETBANKING`, or `WALLET` |
-| `order.couponCode` | Coupon code to apply (optional) |
-
-## Usage
-
-### Login Only (saves session for future runs)
-
-```bash
-npm run login
+```json
+{
+  "accessToken": "cra_access_token_value",
+  "refreshToken": "cra_refresh_token_value"
+}
 ```
 
-The bot will:
-1. Open JioMart
-2. Enter your mobile number
-3. Prompt you for the OTP received on your phone
-4. Save cookies/session for future runs
+### `POST /add-to-cart`
+Add products without placing an order.
 
-### Add Products to Cart (default)
+### `GET /health`
+Health check.
 
-```bash
-npm start
-```
+## Cookie Authentication
 
-The bot will:
-1. Login (using saved session or OTP)
-2. Set delivery pincode
-3. Add all configured products to cart
-4. Show cart summary
-
-### Full Order (login + cart + place order)
-
-```bash
-npm run order
-```
-
-The bot will:
-1. Login
-2. Set delivery pincode
-3. Add products to cart
-4. Select payment method
-5. Ask for your confirmation before placing the order
-6. Place the order
-
-### Headless Mode
-
-Add `--headless` flag to any command:
-
-```bash
-node src/index.js --headless
-node src/index.js --place-order --headless
-```
-
-## Authentication
-
-The bot supports two login methods:
-
-1. **OTP Login** - Enters your mobile number, prompts you for the OTP
-2. **Cookie/Session Reuse** - After first login, saves cookies in `cookies.json` and `storage-state.json` for subsequent runs
-
-## Files Generated
-
-| File | Description |
-|------|-------------|
-| `cookies.json` | Saved browser cookies (auto-generated) |
-| `storage-state.json` | Browser session state (auto-generated) |
-| `screenshot.png` | Final screenshot after bot run |
-
-These files are gitignored and not committed to the repository.
-
-## Safety
-
-- The bot always asks for confirmation before placing an order
-- Set `headless: false` to watch the bot work in real time
-- Use `slowMo` to control the speed of automation
-- Session data is saved locally and never uploaded
+The bot uses JioMart's `cra_access_token` and `cra_refresh_token` cookies for authentication. These are stored as `accessToken` and `refreshToken` in the portal's Connected Accounts. Users can extract these cookies using the portal's Cookie Converter tool.

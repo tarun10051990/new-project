@@ -1,11 +1,9 @@
-import { waitForSelector, safeClick, safeType, sleep, log, prompt } from './utils.js';
+import { safeClick, safeType, sleep, log } from './utils.js';
 
-export async function selectDeliveryAddress(page, config) {
+export async function selectDeliveryAddress(page, address) {
   log('ORDER', 'Selecting delivery address...');
 
-  const addressIndex = config.delivery.addressIndex || 0;
-
-  // Check if we're on address selection page
+  // If we're on checkout, look for address cards
   const addressSelectors = [
     '[class*="address-card"]',
     '[class*="address-item"]',
@@ -15,11 +13,27 @@ export async function selectDeliveryAddress(page, config) {
 
   for (const sel of addressSelectors) {
     try {
-      const addresses = await page.$$(sel);
-      if (addresses.length > 0) {
-        const targetIndex = Math.min(addressIndex, addresses.length - 1);
-        await addresses[targetIndex].click();
-        log('ORDER', `Selected address at index ${targetIndex}`);
+      const cards = await page.$$(sel);
+      if (cards.length > 0) {
+        // Try to find matching address by text content
+        for (const card of cards) {
+          const text = await card.textContent();
+          if (address.pincode && text.includes(address.pincode)) {
+            await card.click();
+            log('ORDER', `Selected address matching pincode ${address.pincode}`);
+            await sleep(1000);
+            return true;
+          }
+          if (address.fullName && text.includes(address.fullName)) {
+            await card.click();
+            log('ORDER', `Selected address for ${address.fullName}`);
+            await sleep(1000);
+            return true;
+          }
+        }
+        // If no match, select the first one
+        await cards[0].click();
+        log('ORDER', 'Selected first available address');
         await sleep(1000);
         return true;
       }
@@ -37,6 +51,7 @@ export async function applyCoupon(page, couponCode) {
 
   log('ORDER', `Applying coupon: ${couponCode}`);
 
+  // Click to open coupon section
   const couponTriggers = [
     'text=Apply Coupon',
     'text=Have a coupon',
@@ -58,6 +73,7 @@ export async function applyCoupon(page, couponCode) {
     }
   }
 
+  // Enter coupon code
   const couponInputs = [
     'input[placeholder*="coupon" i]',
     'input[placeholder*="promo" i]',
@@ -68,13 +84,7 @@ export async function applyCoupon(page, couponCode) {
   for (const sel of couponInputs) {
     const entered = await safeType(page, sel, couponCode, { timeout: 5000 });
     if (entered) {
-      const applyBtns = [
-        'button:has-text("Apply")',
-        'button:has-text("APPLY")',
-        'button[type="submit"]',
-      ];
-
-      for (const btnSel of applyBtns) {
+      for (const btnSel of ['button:has-text("Apply")', 'button:has-text("APPLY")', 'button[type="submit"]']) {
         const clicked = await safeClick(page, btnSel, { timeout: 3000 });
         if (clicked) {
           await sleep(2000);
@@ -89,51 +99,28 @@ export async function applyCoupon(page, couponCode) {
   return false;
 }
 
-export async function selectPaymentMethod(page, method) {
-  log('ORDER', `Selecting payment method: ${method}`);
+export async function selectCODPayment(page) {
+  log('ORDER', 'Selecting Cash on Delivery payment...');
 
-  const methodMap = {
-    COD: [
-      'text=Cash on Delivery',
-      'text=Cash On Delivery',
-      'text=COD',
-      'text=Pay on Delivery',
-      '[class*="cod"]',
-      '[data-testid="cod"]',
-    ],
-    UPI: [
-      'text=UPI',
-      'text=Google Pay',
-      'text=PhonePe',
-      '[class*="upi"]',
-    ],
-    CARD: [
-      'text=Credit / Debit Card',
-      'text=Credit Card',
-      'text=Debit Card',
-      '[class*="card-payment"]',
-    ],
-    NETBANKING: [
-      'text=Net Banking',
-      'text=Netbanking',
-      '[class*="netbanking"]',
-    ],
-    WALLET: [
-      'text=Wallet',
-      'text=JioMoney',
-      '[class*="wallet"]',
-    ],
-  };
+  const codSelectors = [
+    'text=Cash on Delivery',
+    'text=Cash On Delivery',
+    'text=COD',
+    'text=Pay on Delivery',
+    'text=Cash/Pay on Delivery',
+    '[class*="cod"]',
+    '[data-testid="cod"]',
+    'label:has-text("Cash on Delivery")',
+    'div:has-text("Cash on Delivery")',
+  ];
 
-  const selectors = methodMap[method.toUpperCase()] || methodMap.COD;
-
-  for (const sel of selectors) {
+  for (const sel of codSelectors) {
     try {
       const el = await page.$(sel);
       if (el && await el.isVisible()) {
         await el.click();
         await sleep(1000);
-        log('ORDER', `Payment method "${method}" selected`);
+        log('ORDER', 'COD payment selected');
         return true;
       }
     } catch {
@@ -141,75 +128,18 @@ export async function selectPaymentMethod(page, method) {
     }
   }
 
-  log('ORDER', `Could not find "${method}" payment method`);
+  log('ORDER', 'Could not find COD payment option');
   return false;
 }
 
-export async function proceedToCheckout(page) {
-  log('ORDER', 'Proceeding to checkout...');
+export async function placeOrder(page) {
+  log('ORDER', 'Placing order...');
 
-  const checkoutSelectors = [
-    'button:has-text("Place Order")',
-    'button:has-text("PLACE ORDER")',
-    'button:has-text("Proceed to Pay")',
-    'button:has-text("Proceed to Checkout")',
-    'button:has-text("PROCEED TO CHECKOUT")',
-    'button:has-text("Checkout")',
-    'button:has-text("CHECKOUT")',
-    'a:has-text("Place Order")',
-    'a:has-text("Proceed")',
-    '[class*="checkout-btn"]',
-    '[data-testid="checkout"]',
-  ];
-
-  for (const sel of checkoutSelectors) {
-    try {
-      const btn = await page.$(sel);
-      if (btn && await btn.isVisible()) {
-        await btn.click();
-        await sleep(3000);
-        log('ORDER', 'Clicked checkout/proceed button');
-        return true;
-      }
-    } catch {
-      continue;
-    }
-  }
-
-  log('ORDER', 'Could not find checkout button');
-  return false;
-}
-
-export async function placeOrder(page, config) {
-  log('ORDER', '=== Starting order placement ===');
-
-  // Step 1: Select delivery address
-  await selectDeliveryAddress(page, config);
-
-  // Step 2: Apply coupon if provided
-  if (config.order.couponCode) {
-    await applyCoupon(page, config.order.couponCode);
-  }
-
-  // Step 3: Select payment method
-  await selectPaymentMethod(page, config.order.paymentMethod);
-
-  // Step 4: Proceed to place order
-  log('ORDER', 'Ready to place order.');
-  const confirmation = await prompt('Confirm order placement? (yes/no): ');
-
-  if (confirmation.toLowerCase() !== 'yes' && confirmation.toLowerCase() !== 'y') {
-    log('ORDER', 'Order placement cancelled by user.');
-    return false;
-  }
-
-  // Click final "Place Order" button
   const placeOrderSelectors = [
     'button:has-text("Place Order")',
     'button:has-text("PLACE ORDER")',
     'button:has-text("Confirm Order")',
     'button:has-text("CONFIRM ORDER")',
-    'button:has-text("Pay")',
     'button:has-text("Complete Order")',
     '[class*="place-order"]',
     '[data-testid="place-order"]',
@@ -221,13 +151,9 @@ export async function placeOrder(page, config) {
       if (btn && await btn.isVisible()) {
         await btn.click();
         await sleep(5000);
-        log('ORDER', 'Order placed! Waiting for confirmation...');
+        log('ORDER', 'Order placed! Checking confirmation...');
 
-        // Check for order confirmation
         const confirmed = await checkOrderConfirmation(page);
-        if (confirmed) {
-          log('ORDER', 'Order confirmed successfully!');
-        }
         return confirmed;
       }
     } catch {
@@ -235,7 +161,41 @@ export async function placeOrder(page, config) {
     }
   }
 
-  log('ORDER', 'Could not find place order button.');
+  log('ORDER', 'Could not find Place Order button');
+  return false;
+}
+
+export async function proceedToCheckout(page) {
+  log('ORDER', 'Proceeding to checkout...');
+
+  const checkoutSelectors = [
+    'button:has-text("Proceed to Pay")',
+    'button:has-text("Proceed to Checkout")',
+    'button:has-text("PROCEED TO CHECKOUT")',
+    'button:has-text("Checkout")',
+    'button:has-text("CHECKOUT")',
+    'button:has-text("Place Order")',
+    'button:has-text("PLACE ORDER")',
+    'a:has-text("Proceed")',
+    '[class*="checkout-btn"]',
+    '[data-testid="checkout"]',
+  ];
+
+  for (const sel of checkoutSelectors) {
+    try {
+      const btn = await page.$(sel);
+      if (btn && await btn.isVisible()) {
+        await btn.click();
+        await sleep(3000);
+        log('ORDER', 'Clicked checkout button');
+        return true;
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  log('ORDER', 'Could not find checkout button');
   return false;
 }
 
@@ -262,4 +222,36 @@ async function checkOrderConfirmation(page) {
   }
 
   return false;
+}
+
+/**
+ * Full order flow: go to cart → checkout → select address → apply coupon → select COD → place order
+ */
+export async function executeOrderFlow(page, orderData) {
+  const steps = [];
+
+  // Step 1: Select delivery address if on checkout page
+  if (orderData.address) {
+    const addrOk = await selectDeliveryAddress(page, orderData.address);
+    steps.push({ step: 'selectAddress', success: addrOk });
+  }
+
+  // Step 2: Apply coupon if provided
+  if (orderData.couponCode) {
+    const couponOk = await applyCoupon(page, orderData.couponCode);
+    steps.push({ step: 'applyCoupon', success: couponOk });
+  }
+
+  // Step 3: Select COD payment
+  const codOk = await selectCODPayment(page);
+  steps.push({ step: 'selectCOD', success: codOk });
+
+  // Step 4: Place order
+  const orderOk = await placeOrder(page);
+  steps.push({ step: 'placeOrder', success: orderOk });
+
+  return {
+    success: orderOk,
+    steps,
+  };
 }
