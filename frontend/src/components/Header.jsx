@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
 import {
   Zap, Sun, Moon, LogOut, BookOpen, ArrowLeftRight,
-  MessageCircle, Archive, History
+  MessageCircle, Archive, History, Bot
 } from 'lucide-react';
 
 export default function Header() {
@@ -49,6 +49,7 @@ export default function Header() {
         <div style={styles.navLinks}>
           <Link to="/howtouse" style={styles.navLink}><BookOpen size={14} /> How to Use</Link>
           <Link to="/converter" style={styles.navLink}><ArrowLeftRight size={14} /> Cookie Converter</Link>
+          <Link to="/cookie-bot" style={styles.navLink}><Bot size={14} /> Cookie Bot</Link>
         </div>
       </div>
 
