@@ -11,10 +11,10 @@ const LOGIN_URL =
 
 /**
  * POST /run-bot
- * Body: { cra_access_token, cra_refresh_token }
+ * Body: { cra_access_token, cra_refresh_token, _ga, _ga_XGZ513W4JV }
  *
  * 1. Launch browser and navigate to the Reliance login URL
- * 2. Inject cra_access_token and cra_refresh_token cookies
+ * 2. Inject cra_access_token, cra_refresh_token, _ga, and _ga_XGZ513W4JV cookies
  * 3. Reload the page so the cookies take effect
  * 4. Click the "Continue" button
  * 5. Wait for navigation / redirects to settle
@@ -22,7 +22,7 @@ const LOGIN_URL =
  * 7. Return them as JSON
  */
 app.post('/run-bot', async (req, res) => {
-  const { cra_access_token, cra_refresh_token } = req.body;
+  const { cra_access_token, cra_refresh_token, _ga, _ga_XGZ513W4JV } = req.body;
 
   if (!cra_access_token || !cra_refresh_token) {
     return res.status(400).json({
@@ -71,6 +71,30 @@ app.post('/run-bot', async (req, res) => {
           sameSite: 'None',
         },
       );
+
+      if (_ga) {
+        cookiesToSet.push({
+          name: '_ga',
+          value: _ga,
+          domain,
+          path: '/',
+          httpOnly: false,
+          secure: false,
+          sameSite: 'Lax',
+        });
+      }
+
+      if (_ga_XGZ513W4JV) {
+        cookiesToSet.push({
+          name: '_ga_XGZ513W4JV',
+          value: _ga_XGZ513W4JV,
+          domain,
+          path: '/',
+          httpOnly: false,
+          secure: false,
+          sameSite: 'Lax',
+        });
+      }
     }
 
     console.log('[bot] Setting cookies …');

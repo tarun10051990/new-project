@@ -9,6 +9,8 @@ export default function CookieBot() {
   const navigate = useNavigate();
   const [accessToken, setAccessToken] = useState('');
   const [refreshToken, setRefreshToken] = useState('');
+  const [ga, setGa] = useState('');
+  const [gaXgz, setGaXgz] = useState('');
   const [running, setRunning] = useState(false);
   const [cookies, setCookies] = useState(null);
   const [error, setError] = useState('');
@@ -26,13 +28,17 @@ export default function CookieBot() {
     setStatus('running');
 
     try {
+      const payload = {
+        cra_access_token: accessToken.trim(),
+        cra_refresh_token: refreshToken.trim(),
+      };
+      if (ga.trim()) payload._ga = ga.trim();
+      if (gaXgz.trim()) payload._ga_XGZ513W4JV = gaXgz.trim();
+
       const resp = await fetch(`${BOT_API}/run-bot`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          cra_access_token: accessToken.trim(),
-          cra_refresh_token: refreshToken.trim(),
-        }),
+        body: JSON.stringify(payload),
       });
 
       const data = await resp.json();
@@ -79,8 +85,10 @@ export default function CookieBot() {
 
         <p style={styles.desc}>
           Automatically opens the Reliance Retail login page, injects your{' '}
-          <code style={styles.code}>cra_access_token</code> &amp;{' '}
-          <code style={styles.code}>cra_refresh_token</code>, clicks Continue,
+          <code style={styles.code}>cra_access_token</code>,{' '}
+          <code style={styles.code}>cra_refresh_token</code>,{' '}
+          <code style={styles.code}>_ga</code> &amp;{' '}
+          <code style={styles.code}>_ga_XGZ513W4JV</code> cookies, clicks Continue,
           and harvests all JioMart session cookies.
         </p>
 
@@ -105,6 +113,30 @@ export default function CookieBot() {
             onChange={(e) => setRefreshToken(e.target.value)}
             style={styles.textarea}
             rows={3}
+            disabled={running}
+          />
+        </div>
+
+        <div style={styles.inputGroup}>
+          <label style={styles.label}>_ga <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(optional)</span></label>
+          <textarea
+            placeholder="Paste your _ga cookie value here…"
+            value={ga}
+            onChange={(e) => setGa(e.target.value)}
+            style={styles.textarea}
+            rows={2}
+            disabled={running}
+          />
+        </div>
+
+        <div style={styles.inputGroup}>
+          <label style={styles.label}>_ga_XGZ513W4JV <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(optional)</span></label>
+          <textarea
+            placeholder="Paste your _ga_XGZ513W4JV cookie value here…"
+            value={gaXgz}
+            onChange={(e) => setGaXgz(e.target.value)}
+            style={styles.textarea}
+            rows={2}
             disabled={running}
           />
         </div>
