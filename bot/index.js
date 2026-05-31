@@ -2,6 +2,34 @@ import express from 'express';
 import cors from 'cors';
 import { chromium } from 'playwright';
 
+/**
+ * Decode the JWT payload (no verification) and extract the User-Agent
+ * from device_info.os_name.  Falls back to a sensible default.
+ */
+function extractUserAgentFromToken(token) {
+  const DEFAULT_UA =
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36';
+  try {
+    const parts = token.split('.');
+    if (parts.length < 2) return DEFAULT_UA;
+    // Base64url → Base64, then decode
+    let payload = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    // Add padding if needed
+    while (payload.length % 4) payload += '=';
+    const json = Buffer.from(payload, 'base64').toString('utf-8');
+    const data = JSON.parse(json);
+    const ua = data?.device_info?.os_name;
+    if (ua && typeof ua === 'string' && ua.length > 10) {
+      console.log(`[bot] Extracted User-Agent from token: ${ua}`);
+      return ua;
+    }
+  } catch (err) {
+    console.log(`[bot] Could not decode token for User-Agent: ${err.message}`);
+  }
+  console.log('[bot] Using default User-Agent');
+  return DEFAULT_UA;
+}
+
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -40,10 +68,11 @@ app.post('/run-bot', async (req, res) => {
         '--no-sandbox',
       ],
     });
-    const context = await browser.newContext({
-      userAgent:
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36',
-    });
+    // Extract User-Agent from the JWT token so the browser fingerprint matches
+    // the device that originally created the token – this is required for
+    // JioMart's session endpoint to return a populated f.session cookie.
+    const userAgent = extractUserAgentFromToken(cra_access_token);
+    const context = await browser.newContext({ userAgent });
     const page = await context.newPage();
 
     // Remove navigator.webdriver flag so sites don't detect automation
