@@ -102,7 +102,9 @@ app.post('/run-bot', async (req, res) => {
 
     // Step 3 – Refresh the page so the server sees the injected cookies
     console.log('[bot] Refreshing page …');
-    await page.reload({ waitUntil: 'domcontentloaded', timeout: 30000 });
+    await page.reload({ waitUntil: 'networkidle', timeout: 60000 }).catch(() => {
+      console.log('[bot] Page reload timed out – continuing');
+    });
 
     // Give the page a moment to render dynamic content
     await page.waitForTimeout(3000);
@@ -119,28 +121,55 @@ app.post('/run-bot', async (req, res) => {
 
       // Wait for navigation or network to settle after clicking
       await page
-        .waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 15000 })
+        .waitForNavigation({ waitUntil: 'networkidle', timeout: 30000 })
         .catch(() => {
           // navigation may not always happen; ignore timeout
         });
 
-      await page.waitForTimeout(3000);
+      // Wait for redirect chain to complete
+      await page.waitForTimeout(5000);
     } else {
       console.log('[bot] Continue button not found – proceeding to collect cookies');
     }
 
-    // Step 5 – Harvest all cookies from the browser context
-    console.log('[bot] Collecting cookies …');
+    // Step 5 – Navigate to JioMart to trigger all tracking/session scripts
+    console.log('[bot] Navigating to www.jiomart.com to collect all cookies …');
+    await page.goto('https://www.jiomart.com', {
+      waitUntil: 'networkidle',
+      timeout: 60000,
+    }).catch(() => {
+      console.log('[bot] JioMart page load timed out – continuing with cookie collection');
+    });
+
+    // Wait for tracking scripts (GA, CleverTap, Facebook Pixel, etc.) to set cookies
+    await page.waitForTimeout(5000);
+
+    // Step 6 – Harvest ALL cookies from the browser context
+    console.log('[bot] Collecting all cookies …');
     const allCookies = await context.cookies();
 
-    // Also try to pick up cookies from the JioMart domain explicitly
-    const jioMartCookies = await context.cookies('https://www.jiomart.com');
-    const relianceCookies = await context.cookies('https://account.relianceretail.com');
+    // Also explicitly request cookies for each relevant URL
+    const urlsToCheck = [
+      'https://www.jiomart.com',
+      'https://jiomart.com',
+      'https://account.relianceretail.com',
+      'https://relianceretail.com',
+    ];
 
-    // Merge & deduplicate
+    let allCollected = [...allCookies];
+    for (const url of urlsToCheck) {
+      try {
+        const urlCookies = await context.cookies(url);
+        allCollected.push(...urlCookies);
+      } catch {
+        // ignore errors for individual URL cookie fetches
+      }
+    }
+
+    // Merge & deduplicate by name+domain+path
     const seen = new Set();
     const merged = [];
-    for (const c of [...allCookies, ...jioMartCookies, ...relianceCookies]) {
+    for (const c of allCollected) {
       const key = `${c.name}||${c.domain}||${c.path}`;
       if (!seen.has(key)) {
         seen.add(key);
